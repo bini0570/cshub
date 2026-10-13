@@ -17,8 +17,9 @@ import {
 import { getPublishedContent, getCategories } from '../lib/supabase';
 import { ContentCard } from '../features/content/ContentCard';
 import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 import { ContentCardSkeleton } from '../components/ui/Skeleton';
+import { AcademicStudyMaterials } from '../components/home/AcademicStudyMaterials';
+import { QuickQuizWidget } from '../components/home/QuickQuizWidget';
 
 export function HomePage() {
   const [featuredItems, setFeaturedItems] = useState([]);
@@ -121,6 +122,12 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Student Study Materials with Academic Year & Course Subject Filters */}
+      <AcademicStudyMaterials />
+
+      {/* Interactive Daily CS Quick Quiz Widget */}
+      <QuickQuizWidget />
 
       {/* Featured Content Carousel / Grid */}
       {featuredItems.length > 0 && (
