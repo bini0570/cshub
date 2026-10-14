@@ -6,22 +6,22 @@ import { AppLayout } from './components/layout/AppLayout';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { ProtectedRoute, AdminRoute } from './features/auth/ProtectedRoute';
 
-// Frontend (Student Portal)
+// Student Portal
 import {
-  StudentHome as HomePage,
-  StudentResources as ResourcesPage,
-  StudentResourceDetail as ResourceDetailPage,
-  StudentArticles as ArticlesPage,
-  StudentArticleDetail as ArticleDetailPage,
-  StudentTools as ToolsPage,
-  StudentToolDetail as ToolDetailPage,
-  StudentOpportunities as OpportunitiesPage,
-  StudentOpportunityDetail as OpportunityDetailPage,
-  StudentSubmit as SubmitPage,
-  StudentSubmissions as MySubmissionsPage,
-  StudentBookmarks as BookmarksPage,
-  StudentProfile as ProfilePage,
-} from './frontend';
+  StudentHomePage as HomePage,
+  StudentResourcesPage as ResourcesPage,
+  StudentResourceDetailPage as ResourceDetailPage,
+  StudentArticlesPage as ArticlesPage,
+  StudentArticleDetailPage as ArticleDetailPage,
+  StudentToolsPage as ToolsPage,
+  StudentToolDetailPage as ToolDetailPage,
+  StudentOpportunitiesPage as OpportunitiesPage,
+  StudentOpportunityDetailPage as OpportunityDetailPage,
+  StudentSubmitPage as SubmitPage,
+  StudentSubmissionsPage as MySubmissionsPage,
+  StudentBookmarksPage as BookmarksPage,
+  StudentProfilePage as ProfilePage,
+} from './student';
 
 import { SearchPage } from './pages/SearchPage';
 import { AboutPage } from './pages/AboutPage';

@@ -1,13 +1,23 @@
 /**
- * CS Hub Admin Management Center
- * Exports administration views, moderation queues, content editors, and user management.
+ * CS Hub — Admin Module
+ * Contains all Administrator views, dashboard metrics, moderation queue,
+ * content management, user management, and security audit logs.
  */
 
-export { AdminLayout } from '../components/layout/AdminLayout';
-export { AdminDashboardPage as AdminDashboard } from '../pages/admin/AdminDashboardPage';
-export { AdminModerationPage as AdminModeration } from '../pages/admin/AdminModerationPage';
-export { AdminContentPage as AdminContentManager } from '../pages/admin/AdminContentPage';
-export { AdminContentEditorPage as AdminContentEditor } from '../pages/admin/AdminContentEditorPage';
-export { AdminUsersPage as AdminUsers } from '../pages/admin/AdminUsersPage';
-export { AdminAuditLogsPage as AdminAuditLogs } from '../pages/admin/AdminAuditLogsPage';
-export { AdminSettingsPage as AdminSettings } from '../pages/admin/AdminSettingsPage';
+export { AdminLayout } from './components/AdminLayout';
+export {
+  AdminDashboardPage,
+  AdminDashboardPage as AdminDashboard,
+  AdminModerationPage,
+  AdminModerationPage as AdminModeration,
+  AdminContentPage,
+  AdminContentPage as AdminContentManager,
+  AdminContentEditorPage,
+  AdminContentEditorPage as AdminContentEditor,
+  AdminUsersPage,
+  AdminUsersPage as AdminUsers,
+  AdminAuditLogsPage,
+  AdminAuditLogsPage as AdminAuditLogs,
+  AdminSettingsPage,
+  AdminSettingsPage as AdminSettings,
+} from './pages';
