@@ -7,11 +7,12 @@
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview",
+    "start:backend": "node backend/server.js",
+    "start:bot": "node backend/bot.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.46.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.0",
     "lucide-react": "^0.460.0",

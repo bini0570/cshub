@@ -25,6 +25,7 @@ dist-ssr
 
 # Environment files
 .env
-.env.production
-.env.development
+.env.*
+*.env
+**/.env
 !.env.example

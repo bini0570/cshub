@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { INITIAL_USERS } from '../data/mockData';
 
 const AuthContext = createContext();
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -14,44 +14,44 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     async function initAuth() {
-      if (isSupabaseConfigured && supabase) {
+      const token = localStorage.getItem('cshub_token');
+
+      // 1. If we have a JWT token and Railway API is configured, verify session
+      if (token && API_BASE_URL) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user && mounted) {
-            setUser(session.user);
-            await fetchProfile(session.user.id);
+          const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (mounted && data.user) {
+              setUser(data.user);
+              setProfile(data.user);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Token expired or invalid
+            localStorage.removeItem('cshub_token');
           }
         } catch (err) {
-          console.error('Error fetching Supabase session:', err);
-        } finally {
-          if (mounted) setIsLoading(false);
+          console.warn('Could not connect to Railway auth API, checking local session:', err.message);
         }
-
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (session?.user) {
-            setUser(session.user);
-            await fetchProfile(session.user.id);
-          } else {
-            setUser(null);
-            setProfile(null);
-          }
-          setIsLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-      } else {
-        // Fallback / Demonstration Mode: Check localStorage for simulated active user
-        const savedMockUserId = localStorage.getItem('cshub_current_user_id');
-        const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-        const found = users.find((u) => u.id === (savedMockUserId || 'user-admin-1')) || users[0];
-        
-        if (found && mounted) {
-          setUser({ id: found.id, email: found.email });
-          setProfile(found);
-        }
-        if (mounted) setIsLoading(false);
       }
+
+      // 2. Local fallback session
+      const savedMockUserId = localStorage.getItem('cshub_current_user_id');
+      const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
+      const found = users.find((u) => u.id === (savedMockUserId || 'user-admin-1')) || users[0];
+
+      if (found && mounted) {
+        setUser({ id: found.id, email: found.email, full_name: found.full_name || found.display_name });
+        setProfile(found);
+      }
+      if (mounted) setIsLoading(false);
     }
 
     initAuth();
@@ -60,88 +60,94 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  async function fetchProfile(userId) {
-    if (!isSupabaseConfigured || !supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      if (!error && data) {
-        setProfile(data);
-      }
-    } catch (err) {
-      console.error('Failed to load user profile:', err);
-    }
-  }
-
-  // Login handler
-  const login = async (email, password) => {
+  /**
+   * Log in with a 6-digit Telegram Verification Code
+   */
+  const loginWithTelegramCode = async (code) => {
     setIsLoading(true);
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
+    if (API_BASE_URL) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/telegram-verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Verification code invalid or expired');
+        }
+
+        localStorage.setItem('cshub_token', data.token);
+        localStorage.setItem('cshub_current_user_id', data.user.id);
+        setUser(data.user);
+        setProfile(data.user);
         setIsLoading(false);
-        throw error;
+        return data.user;
+      } catch (err) {
+        setIsLoading(false);
+        throw err;
       }
-      setUser(data.user);
-      await fetchProfile(data.user.id);
-      setIsLoading(false);
-      return data.user;
     }
 
-    // Mock Login
+    // Local simulated verification code fallback
     const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const matched = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (matched) {
-      setUser({ id: matched.id, email: matched.email });
-      setProfile(matched);
-      localStorage.setItem('cshub_current_user_id', matched.id);
-      setIsLoading(false);
-      return matched;
-    }
-    // New mock student if unknown
-    const newMockUser = {
-      id: `user-${Date.now()}`,
-      email,
-      display_name: email.split('@')[0],
-      role: 'student',
-      status: 'active',
-      avatar_url: '',
-      created_at: new Date().toISOString(),
-    };
-    const updatedUsers = [...users, newMockUser];
-    localStorage.setItem('cshub_users', JSON.stringify(updatedUsers));
-    localStorage.setItem('cshub_current_user_id', newMockUser.id);
-    setUser({ id: newMockUser.id, email: newMockUser.email });
-    setProfile(newMockUser);
+    const student = users.find((u) => u.role === 'student') || users[0];
+    setUser({ id: student.id, email: student.email });
+    setProfile(student);
+    localStorage.setItem('cshub_current_user_id', student.id);
     setIsLoading(false);
-    return newMockUser;
+    return student;
+  };
+
+  /**
+   * Admin / Staff Login via Email & Password
+   */
+  const adminLogin = async (email, password) => {
+    setIsLoading(true);
+    if (API_BASE_URL) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/admin-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Admin credentials incorrect');
+        }
+
+        localStorage.setItem('cshub_token', data.token);
+        localStorage.setItem('cshub_current_user_id', data.user.id);
+        setUser(data.user);
+        setProfile(data.user);
+        setIsLoading(false);
+        return data.user;
+      } catch (err) {
+        setIsLoading(false);
+        throw err;
+      }
+    }
+
+    // Local fallback for admin login
+    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
+    const adminUser = users.find((u) => u.role === 'admin' || u.role === 'super_admin') || users[0];
+    setUser({ id: adminUser.id, email: adminUser.email });
+    setProfile(adminUser);
+    localStorage.setItem('cshub_current_user_id', adminUser.id);
+    setIsLoading(false);
+    return adminUser;
+  };
+
+  // General login wrapper
+  const login = async (email, password) => {
+    return adminLogin(email, password);
   };
 
   // Register handler
   const register = async (email, password, displayName) => {
     setIsLoading(true);
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: displayName,
-          },
-        },
-      });
-      if (error) {
-        setIsLoading(false);
-        throw error;
-      }
-      setIsLoading(false);
-      return data.user;
-    }
-
-    // Mock Register
     const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
     const newUser = {
       id: `user-${Date.now()}`,
@@ -162,9 +168,7 @@ export function AuthProvider({ children }) {
 
   // Logout handler
   const logout = async () => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
-    }
+    localStorage.removeItem('cshub_token');
     localStorage.removeItem('cshub_current_user_id');
     setUser(null);
     setProfile(null);
@@ -172,31 +176,11 @@ export function AuthProvider({ children }) {
 
   // Password reset request
   const resetPassword = async (email) => {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      return true;
-    }
-    // Mock simulation
     return true;
   };
 
   // Update profile
   const updateProfile = async (updates) => {
-    if (isSupabaseConfigured && supabase && user) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id)
-        .select()
-        .single();
-      if (error) throw error;
-      setProfile(data);
-      return data;
-    }
-
     if (profile) {
       const updated = { ...profile, ...updates };
       setProfile(updated);
@@ -218,7 +202,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const isAdmin = Boolean(profile && (profile.role === 'admin' || profile.role === 'super_admin'));
+  const isAdmin = Boolean(profile && (profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'moderator'));
 
   return (
     <AuthContext.Provider
@@ -228,12 +212,14 @@ export function AuthProvider({ children }) {
         isAdmin,
         isLoading,
         login,
+        adminLogin,
+        loginWithTelegramCode,
         register,
         logout,
         resetPassword,
         updateProfile,
         switchMockUser,
-        isConfigured: isSupabaseConfigured,
+        isConfigured: Boolean(API_BASE_URL),
       }}
     >
       {children}

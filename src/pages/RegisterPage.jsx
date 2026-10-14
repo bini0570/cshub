@@ -1,149 +1,87 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Send, CheckCircle2, ArrowRight, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Logo } from '../components/common/Logo';
 
 export function RegisterPage() {
-  const { register } = useAuth();
-  const navigate = useNavigate();
-
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!displayName.trim() || !email.trim() || !password) {
-      setErrorMsg('Please complete all required fields.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters long.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setErrorMsg('');
-      await register(email, password, displayName);
-      setSuccessMsg('Account created successfully! Redirecting...');
-      setTimeout(() => navigate('/'), 1200);
-    } catch (err) {
-      console.error('Registration error:', err);
-      setErrorMsg(err.message || 'Failed to register account. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'cshub_bot';
+  const telegramBotLink = `https://t.me/${botUsername}`;
 
   return (
     <div className="min-h-[75vh] flex items-center justify-center py-10 px-4">
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-3">
             <Logo size="lg" link={false} />
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-            Create Student Account
+            Student Registration
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Join the independent CS student community to save bookmarks and share study resources.
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Student registration is managed seamlessly through our official Telegram Bot
           </p>
         </div>
 
-        <Card className="p-6 sm:p-8">
-          {successMsg ? (
-            <div className="py-8 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Welcome to CS Hub!
-              </h3>
-              <p className="text-xs text-slate-500">{successMsg}</p>
+        <Card className="p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+          <div className="flex items-center gap-3 p-4 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 rounded-xl">
+            <div className="p-2.5 bg-teal-600 text-white rounded-lg shrink-0">
+              <Send className="w-6 h-6" />
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {errorMsg && (
-                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              <Input
-                label="Display Name or Username"
-                required
-                autoFocus
-                placeholder="e.g. Alex"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                helperText="This will appear as your public contributor name."
-              />
-
-              <Input
-                label="Email Address"
-                type="email"
-                required
-                placeholder="student@example.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-
-              <Input
-                label="Password"
-                type="password"
-                required
-                placeholder="At least 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-
-              <Input
-                label="Confirm Password"
-                type="password"
-                required
-                placeholder="Re-type password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-
-              <p className="text-[11px] text-slate-400 leading-normal">
-                By registering, you agree that CS Hub is an independent tech community and that
-                submitted materials adhere to educational sharing standards.
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Register via @{botUsername}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Fast student verification without passwords to remember.
               </p>
+            </div>
+          </div>
 
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                isLoading={loading}
-                icon={UserPlus}
-                className="w-full mt-2"
-              >
-                Create Account
-              </Button>
-            </form>
-          )}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              How it works:
+            </h4>
+            <div className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+              <div className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 font-bold text-[11px] shrink-0">
+                  1
+                </span>
+                <span>Open the Telegram Bot and send <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-teal-600 dark:text-teal-400">/start</code></span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 font-bold text-[11px] shrink-0">
+                  2
+                </span>
+                <span>Type <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-teal-600 dark:text-teal-400">/register</code> and provide your Full Name, Student ID, and Department</span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 font-bold text-[11px] shrink-0">
+                  3
+                </span>
+                <span>The bot generates a secure 6-digit login code and direct link to sign in</span>
+              </div>
+            </div>
+          </div>
 
-          <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-navy-800 pt-5">
-            Already have an account?{' '}
+          <a
+            href={telegramBotLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <Button className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold">
+              <Send className="w-4 h-4" />
+              Open Telegram Bot to Register
+              <ExternalLink className="w-4 h-4 ml-1" />
+            </Button>
+          </a>
+
+          <div className="pt-2 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
+            Already registered on Telegram?{' '}
             <Link to="/login" className="font-semibold text-teal-600 dark:text-teal-400 hover:underline">
-              Sign in
+              Enter your login code
             </Link>
           </div>
         </Card>
@@ -151,3 +89,5 @@ export function RegisterPage() {
     </div>
   );
 }
+
+export default RegisterPage;
