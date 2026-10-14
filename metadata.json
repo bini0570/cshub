@@ -1,0 +1,8 @@
+{
+  "name": "CS Hub",
+  "description": "Independent content platform for Computer Science students: articles, tutorials, open-source resources, developer tools, and tech career opportunities.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
