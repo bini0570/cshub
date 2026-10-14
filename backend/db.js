@@ -5,13 +5,13 @@ dotenv.config();
 
 const { Pool } = pg;
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
 
 export const pool = new Pool({
   connectionString,
-  ssl: connectionString && !connectionString.includes('localhost')
+  ssl: connectionString && !connectionString.includes('localhost') && !connectionString.includes('.railway.internal')
     ? { rejectUnauthorized: false }
-    : false,
+    : (connectionString && !connectionString.includes('localhost') ? { rejectUnauthorized: false } : false),
 });
 
 /**
