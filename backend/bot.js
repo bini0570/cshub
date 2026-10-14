@@ -30,6 +30,14 @@ export function startTelegramBot() {
   bot = new TelegramBot(token, { polling: true });
   console.log('🤖 Telegram Bot started and polling for commands...');
 
+  // Catch polling conflicts gracefully (e.g. during Railway container rotation)
+  bot.on('polling_error', (err) => {
+    if (err.message && err.message.includes('409 Conflict')) {
+      return;
+    }
+    console.warn('Telegram polling warning:', err.message || err);
+  });
+
   // --- /start Command ---
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;

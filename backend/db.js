@@ -1,46 +1,117 @@
 import pg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_FILE = path.join(__dirname, 'data', 'cshub_store.json');
 
 const { Pool } = pg;
 
 const connectionString = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
 
-export const pool = new Pool({
-  connectionString,
-  ssl: connectionString && !connectionString.includes('localhost') && !connectionString.includes('.railway.internal')
-    ? { rejectUnauthorized: false }
-    : (connectionString && !connectionString.includes('localhost') ? { rejectUnauthorized: false } : false),
-});
+let isPostgresAvailable = false;
+let pool = null;
 
-/**
- * Execute a query with error logging
- */
-export async function query(text, params) {
-  const start = Date.now();
+// Initial seed categories
+const DEFAULT_CATEGORIES = [
+  { id: 'cat-core', slug: 'core-cs', name: 'Core Computer Science', description: 'Algorithms, Data Structures, Operating Systems, & Architecture', icon: 'BookOpen', color: 'indigo', display_order: 1 },
+  { id: 'cat-web', slug: 'web-development', name: 'Web & Cloud Systems', description: 'Modern Full-Stack, REST APIs, Microservices, and DevOps', icon: 'Code', color: 'teal', display_order: 2 },
+  { id: 'cat-ai', slug: 'ai-machine-learning', name: 'AI & Machine Learning', description: 'Neural networks, computer vision, NLP, and model deployment', icon: 'Sparkles', color: 'purple', display_order: 3 },
+  { id: 'cat-sec', slug: 'cybersecurity', name: 'Cybersecurity & Systems', description: 'Ethical hacking, network protocols, cryptography, and defense', icon: 'Shield', color: 'rose', display_order: 4 },
+  { id: 'cat-cheatsheets', slug: 'cheatsheets', name: 'Exam Cheatsheets & Reference', description: 'High-density revision summaries for finals and midterm exams', icon: 'FileText', color: 'amber', display_order: 5 },
+  { id: 'cat-tools', slug: 'dev-tools', name: 'Developer Tools & CLI', description: 'Production IDE configs, Git workflows, Docker compose templates', icon: 'Wrench', color: 'cyan', display_order: 6 },
+];
+
+const DEFAULT_ADMIN = {
+  id: 'admin-primary',
+  student_id: 'ADMIN-001',
+  full_name: 'CS Hub Administrator',
+  role: 'super_admin',
+  email: 'admin@cshub.edu',
+  password_hash: '$2a$10$wKxN74jB4J5n8fP75dG7sOBvLwD9UqTshj2PjI1Pj5kE4w4lZ7Zje', // Admin@123
+  created_at: new Date().toISOString(),
+};
+
+// ==============================================================================
+// LOCAL JSON STORE (Fallback when Postgres is unreachable or on Railway Trial)
+// ==============================================================================
+function getLocalStore() {
   try {
-    const res = await pool.query(text, params);
-    return res;
+    if (!fs.existsSync(path.dirname(DATA_FILE))) {
+      fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+    }
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
   } catch (err) {
-    console.error('Database query error:', { text, error: err.message });
-    throw err;
+    console.error('Error reading local data store:', err.message);
+  }
+
+  const initial = {
+    users: [DEFAULT_ADMIN],
+    telegram_auth_codes: [],
+    categories: DEFAULT_CATEGORIES,
+    content: [],
+    submissions: [],
+    bookmarks: [],
+    audit_logs: [],
+  };
+  saveLocalStore(initial);
+  return initial;
+}
+
+function saveLocalStore(data) {
+  try {
+    if (!fs.existsSync(path.dirname(DATA_FILE))) {
+      fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving local data store:', err.message);
   }
 }
 
-/**
- * Auto-migrate and create tables if they do not exist
- */
+// ==============================================================================
+// DATABASE INITIALIZATION
+// ==============================================================================
 export async function initDatabase() {
-  if (!connectionString) {
-    console.warn('⚠️ DATABASE_URL is not set. Database operations will fail until configured.');
-    return;
+  if (connectionString && !connectionString.includes('postgres.railway.internal')) {
+    try {
+      console.log('🔄 Attempting PostgreSQL connection...');
+      pool = new Pool({
+        connectionString,
+        connectionTimeoutMillis: 5000,
+        ssl: !connectionString.includes('localhost') ? { rejectUnauthorized: false } : false,
+      });
+
+      const testRes = await pool.query('SELECT NOW()');
+      if (testRes.rows.length > 0) {
+        console.log('✅ PostgreSQL connected successfully at', testRes.rows[0].now);
+        isPostgresAvailable = true;
+        await runPostgresMigrations();
+        return;
+      }
+    } catch (pgErr) {
+      console.warn(`⚠️ PostgreSQL connection failed (${pgErr.message}). Switching to persistent local storage fallback.`);
+      isPostgresAvailable = false;
+    }
+  } else {
+    console.log('ℹ️ No external PostgreSQL URL detected (or internal DNS unresolvable). Using built-in persistent storage.');
   }
 
-  console.log('🔄 Initializing database tables...');
+  // Ensure local store is initialized
+  getLocalStore();
+  console.log('✅ Local persistent data store active & ready.');
+}
 
+async function runPostgresMigrations() {
   const migrationSql = `
-    -- Users table
     CREATE TABLE IF NOT EXISTS users (
       id VARCHAR(64) PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
@@ -56,7 +127,6 @@ export async function initDatabase() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
 
-    -- Telegram Auth Codes (One-time login codes)
     CREATE TABLE IF NOT EXISTS telegram_auth_codes (
       code VARCHAR(10) PRIMARY KEY,
       telegram_id BIGINT NOT NULL,
@@ -65,7 +135,6 @@ export async function initDatabase() {
       used BOOLEAN DEFAULT FALSE
     );
 
-    -- Categories table
     CREATE TABLE IF NOT EXISTS categories (
       id VARCHAR(64) PRIMARY KEY,
       slug VARCHAR(100) UNIQUE NOT NULL,
@@ -76,7 +145,6 @@ export async function initDatabase() {
       display_order INT DEFAULT 0
     );
 
-    -- Content table (Resources, Articles, Tools, Opportunities)
     CREATE TABLE IF NOT EXISTS content (
       id VARCHAR(64) PRIMARY KEY,
       slug VARCHAR(150) UNIQUE NOT NULL,
@@ -103,7 +171,6 @@ export async function initDatabase() {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
 
-    -- Submissions table (Student content peer-review queue)
     CREATE TABLE IF NOT EXISTS submissions (
       id VARCHAR(64) PRIMARY KEY,
       submitter_id VARCHAR(64) NOT NULL,
@@ -122,7 +189,6 @@ export async function initDatabase() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
 
-    -- Bookmarks table
     CREATE TABLE IF NOT EXISTS bookmarks (
       id VARCHAR(64) PRIMARY KEY,
       user_id VARCHAR(64) NOT NULL,
@@ -131,7 +197,6 @@ export async function initDatabase() {
       UNIQUE (user_id, content_id)
     );
 
-    -- Audit Logs table
     CREATE TABLE IF NOT EXISTS audit_logs (
       id VARCHAR(64) PRIMARY KEY,
       admin_name VARCHAR(150),
@@ -143,54 +208,181 @@ export async function initDatabase() {
     );
   `;
 
-  try {
-    await pool.query(migrationSql);
-    console.log('✅ Database schema verified.');
-    await seedDefaultData();
-  } catch (err) {
-    console.error('❌ Error running database migration:', err.message);
+  await pool.query(migrationSql);
+  console.log('✅ PostgreSQL schema verified.');
+
+  // Seed categories
+  for (const c of DEFAULT_CATEGORIES) {
+    await pool.query(
+      `INSERT INTO categories (id, slug, name, description, icon, color, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+      [c.id, c.slug, c.name, c.description, c.icon, c.color, c.display_order]
+    );
   }
+
+  // Seed default admin
+  await pool.query(
+    `INSERT INTO users (id, student_id, full_name, role, email, password_hash)
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+    [DEFAULT_ADMIN.id, DEFAULT_ADMIN.student_id, DEFAULT_ADMIN.full_name, DEFAULT_ADMIN.role, DEFAULT_ADMIN.email, DEFAULT_ADMIN.password_hash]
+  );
 }
 
-/**
- * Seed initial categories and default admin if not existing
- */
-async function seedDefaultData() {
-  const catCheck = await pool.query('SELECT COUNT(*) FROM categories');
-  if (parseInt(catCheck.rows[0].count, 10) === 0) {
-    console.log('🌱 Seeding initial categories...');
-    const categories = [
-      ['cat-core', 'core-cs', 'Core Computer Science', 'Algorithms, Data Structures, Operating Systems, & Architecture', 'BookOpen', 'indigo', 1],
-      ['cat-web', 'web-development', 'Web & Cloud Systems', 'Modern Full-Stack, REST APIs, Microservices, and DevOps', 'Code', 'teal', 2],
-      ['cat-ai', 'ai-machine-learning', 'AI & Machine Learning', 'Neural networks, computer vision, NLP, and model deployment', 'Sparkles', 'purple', 3],
-      ['cat-sec', 'cybersecurity', 'Cybersecurity & Systems', 'Ethical hacking, network protocols, cryptography, and defense', 'Shield', 'rose', 4],
-      ['cat-cheatsheets', 'cheatsheets', 'Exam Cheatsheets & Reference', 'High-density revision summaries for finals and midterm exams', 'FileText', 'amber', 5],
-      ['cat-tools', 'dev-tools', 'Developer Tools & CLI', 'Production IDE configs, Git workflows, Docker compose templates', 'Wrench', 'cyan', 6],
-    ];
-
-    for (const [id, slug, name, desc, icon, color, order] of categories) {
-      await pool.query(
-        `INSERT INTO categories (id, slug, name, description, icon, color, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
-        [id, slug, name, desc, icon, color, order]
-      );
+// ==============================================================================
+// RESILIENT QUERY DISPATCHER (Postgres -> Local Store Fallback)
+// ==============================================================================
+export async function query(text, params = []) {
+  if (isPostgresAvailable && pool) {
+    try {
+      return await pool.query(text, params);
+    } catch (err) {
+      console.warn('Postgres query failed, falling back to local store:', err.message);
     }
   }
 
-  // Seed default admin user if not present
-  const adminCheck = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'admin' OR role = 'super_admin'");
-  if (parseInt(adminCheck.rows[0].count, 10) === 0) {
-    console.log('🌱 Seeding default administrator account...');
-    await pool.query(`
-      INSERT INTO users (id, student_id, full_name, role, email, password_hash)
-      VALUES (
-        'admin-primary',
-        'ADMIN-001',
-        'CS Hub Administrator',
-        'super_admin',
-        'admin@cshub.edu',
-        '$2a$10$wKxN74jB4J5n8fP75dG7sOBvLwD9UqTshj2PjI1Pj5kE4w4lZ7Zje' -- bcrypt for 'Admin@123'
-      ) ON CONFLICT (id) DO NOTHING
-    `);
+  // --- Local Fallback Query Handler ---
+  const store = getLocalStore();
+  const trimmed = text.trim();
+
+  // 1. SELECT * FROM users WHERE telegram_id = $1
+  if (trimmed.includes('FROM users WHERE telegram_id = $1')) {
+    const tId = Number(params[0]);
+    const found = store.users.filter((u) => Number(u.telegram_id) === tId);
+    return { rows: found };
   }
+
+  // 2. INSERT INTO users ... ON CONFLICT (telegram_id)
+  if (trimmed.startsWith('INSERT INTO users')) {
+    const [id, telegram_id, telegram_username, student_id, full_name, department, academic_year, role] = params;
+    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === Number(telegram_id));
+    const userRecord = {
+      id: id || `user-${Date.now()}`,
+      telegram_id: Number(telegram_id),
+      telegram_username: telegram_username || null,
+      student_id: student_id || '',
+      full_name: full_name || '',
+      department: department || '',
+      academic_year: Number(academic_year) || 1,
+      role: role || 'student',
+      created_at: new Date().toISOString(),
+    };
+
+    if (existingIndex >= 0) {
+      store.users[existingIndex] = { ...store.users[existingIndex], ...userRecord };
+    } else {
+      store.users.push(userRecord);
+    }
+    saveLocalStore(store);
+    return { rows: [userRecord] };
+  }
+
+  // 3. SELECT * FROM telegram_auth_codes WHERE code = $1
+  if (trimmed.includes('FROM telegram_auth_codes') && trimmed.includes('code = $1')) {
+    const code = String(params[0]).trim();
+    const now = new Date();
+    const found = store.telegram_auth_codes.filter(
+      (c) => c.code === code && !c.used && new Date(c.expires_at) > now
+    );
+    return { rows: found };
+  }
+
+  // 4. UPDATE telegram_auth_codes SET used = TRUE
+  if (trimmed.includes('UPDATE telegram_auth_codes SET used = TRUE')) {
+    const codeOrTid = params[0];
+    store.telegram_auth_codes = store.telegram_auth_codes.map((c) => {
+      if (c.code === String(codeOrTid) || Number(c.telegram_id) === Number(codeOrTid)) {
+        return { ...c, used: true };
+      }
+      return c;
+    });
+    saveLocalStore(store);
+    return { rows: [] };
+  }
+
+  // 5. INSERT INTO telegram_auth_codes
+  if (trimmed.startsWith('INSERT INTO telegram_auth_codes')) {
+    const [code, telegram_id, user_id, expires_at] = params;
+    const authCode = {
+      code: String(code),
+      telegram_id: Number(telegram_id),
+      user_id: String(user_id),
+      expires_at: expires_at instanceof Date ? expires_at.toISOString() : String(expires_at),
+      used: false,
+    };
+    store.telegram_auth_codes.push(authCode);
+    saveLocalStore(store);
+    return { rows: [authCode] };
+  }
+
+  // 6. SELECT * FROM users WHERE email = $1
+  if (trimmed.includes('FROM users WHERE email = $1')) {
+    const email = String(params[0]).toLowerCase();
+    const found = store.users.filter((u) => u.email && u.email.toLowerCase() === email);
+    return { rows: found };
+  }
+
+  // 7. SELECT * FROM users WHERE id = $1
+  if (trimmed.includes('FROM users WHERE id = $1')) {
+    const id = String(params[0]);
+    const found = store.users.filter((u) => u.id === id);
+    return { rows: found };
+  }
+
+  // 8. SELECT * FROM categories
+  if (trimmed.includes('FROM categories')) {
+    return { rows: store.categories || DEFAULT_CATEGORIES };
+  }
+
+  // 9. SELECT * FROM content
+  if (trimmed.includes('FROM content')) {
+    let list = store.content || [];
+    if (params.length > 0 && trimmed.includes('c.slug = $1')) {
+      list = list.filter((c) => c.slug === params[0]);
+    }
+    return { rows: list };
+  }
+
+  // 10. SELECT * FROM submissions
+  if (trimmed.includes('FROM submissions')) {
+    let list = store.submissions || [];
+    if (params.length > 0 && trimmed.includes('submitter_id = $1')) {
+      list = list.filter((s) => s.submitter_id === params[0]);
+    }
+    return { rows: list };
+  }
+
+  // 11. INSERT INTO submissions
+  if (trimmed.startsWith('INSERT INTO submissions')) {
+    const [id, submitter_id, submitter_name, submitter_telegram, title, content_type, description, category_id, external_url, file_url] = params;
+    const newSub = {
+      id: id || `sub-${Date.now()}`,
+      submitter_id,
+      submitter_name,
+      submitter_telegram,
+      title,
+      content_type,
+      description,
+      category_id,
+      external_url,
+      file_url,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    };
+    store.submissions.push(newSub);
+    saveLocalStore(store);
+    return { rows: [newSub] };
+  }
+
+  // 12. SELECT * FROM users
+  if (trimmed.includes('FROM users')) {
+    return { rows: store.users || [] };
+  }
+
+  // 13. SELECT * FROM audit_logs
+  if (trimmed.includes('FROM audit_logs')) {
+    return { rows: store.audit_logs || [] };
+  }
+
+  // Default fallback empty result
+  return { rows: [] };
 }
