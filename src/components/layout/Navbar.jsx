@@ -45,9 +45,38 @@ export function Navbar({ onOpenSearch }) {
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 dark:border-navy-800 bg-white/90 dark:bg-navy-950/90 backdrop-blur-md transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo */}
-          <div className="flex-shrink-0 flex items-center">
+          {/* Logo & Portal Switcher */}
+          <div className="flex-shrink-0 flex items-center gap-4">
             <Logo size="md" />
+
+            {/* Direct Portal Toggle */}
+            <div className="hidden lg:flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-navy-900 border border-slate-200 dark:border-navy-800 text-xs font-semibold">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `px-2.5 py-1 rounded-md transition-all ${
+                    isActive
+                      ? 'bg-white dark:bg-navy-800 text-teal-600 dark:text-teal-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`
+                }
+              >
+                🎓 Student Hub
+              </NavLink>
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  `px-2.5 py-1 rounded-md transition-all ${
+                    isActive
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`
+                }
+              >
+                🛡️ Admin
+              </NavLink>
+            </div>
           </div>
 
           {/* Desktop Nav Links */}

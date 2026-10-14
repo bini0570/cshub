@@ -6,42 +6,42 @@ import { AppLayout } from './components/layout/AppLayout';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { ProtectedRoute, AdminRoute } from './features/auth/ProtectedRoute';
 
-// Public Pages
-import { HomePage } from './pages/HomePage';
-import { ResourcesPage } from './pages/ResourcesPage';
-import { ResourceDetailPage } from './pages/ResourceDetailPage';
-import { ArticlesPage } from './pages/ArticlesPage';
-import { ArticleDetailPage } from './pages/ArticleDetailPage';
-import { ToolsPage } from './pages/ToolsPage';
-import { ToolDetailPage } from './pages/ToolDetailPage';
-import { OpportunitiesPage } from './pages/OpportunitiesPage';
-import { OpportunityDetailPage } from './pages/OpportunityDetailPage';
+// Frontend (Student Portal)
+import {
+  StudentHome as HomePage,
+  StudentResources as ResourcesPage,
+  StudentResourceDetail as ResourceDetailPage,
+  StudentArticles as ArticlesPage,
+  StudentArticleDetail as ArticleDetailPage,
+  StudentTools as ToolsPage,
+  StudentToolDetail as ToolDetailPage,
+  StudentOpportunities as OpportunitiesPage,
+  StudentOpportunityDetail as OpportunityDetailPage,
+  StudentSubmit as SubmitPage,
+  StudentSubmissions as MySubmissionsPage,
+  StudentBookmarks as BookmarksPage,
+  StudentProfile as ProfilePage,
+} from './frontend';
+
 import { SearchPage } from './pages/SearchPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
-
-// Auth Pages
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-
-// Student Protected Pages
-import { ProfilePage } from './pages/ProfilePage';
-import { BookmarksPage } from './pages/BookmarksPage';
-import { SubmitPage } from './pages/SubmitPage';
-import { MySubmissionsPage } from './pages/MySubmissionsPage';
 import { SettingsPage } from './pages/SettingsPage';
-
-// Admin Protected Pages
-import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
-import { AdminModerationPage } from './pages/admin/AdminModerationPage';
-import { AdminContentPage } from './pages/admin/AdminContentPage';
-import { AdminContentEditorPage } from './pages/admin/AdminContentEditorPage';
-import { AdminUsersPage } from './pages/admin/AdminUsersPage';
-import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage';
-import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
-
 import { NotFoundPage } from './pages/NotFoundPage';
+
+// Admin Portal
+import {
+  AdminDashboard as AdminDashboardPage,
+  AdminModeration as AdminModerationPage,
+  AdminContentManager as AdminContentPage,
+  AdminContentEditor as AdminContentEditorPage,
+  AdminUsers as AdminUsersPage,
+  AdminAuditLogs as AdminAuditLogsPage,
+  AdminSettings as AdminSettingsPage,
+} from './admin';
 
 export function App() {
   return (
