@@ -44,6 +44,10 @@ import {
 } from './admin';
 
 export function App() {
+  const isAdminDomain =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('admin') || import.meta.env.VITE_APP_ROLE === 'admin');
+
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -51,7 +55,7 @@ export function App() {
           <Routes>
             {/* Public and Student App Routes */}
             <Route element={<AppLayout />}>
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={isAdminDomain ? <Navigate to="/admin" replace /> : <HomePage />} />
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/resources/:slug" element={<ResourceDetailPage />} />
               <Route path="/articles" element={<ArticlesPage />} />

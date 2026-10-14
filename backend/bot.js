@@ -168,7 +168,7 @@ export function startTelegramBot() {
         [code, telegramId, user.id, expiresAt]
       );
 
-      const frontendUrl = process.env.FRONTEND_URL || 'https://your-cshub.vercel.app';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://cshub-student.vercel.app';
       const quickLoginLink = `${frontendUrl}/login?code=${code}`;
 
       bot.sendMessage(
@@ -305,7 +305,7 @@ export function startTelegramBot() {
 
           registrationSessions.delete(telegramId);
 
-          const frontendUrl = process.env.FRONTEND_URL || 'https://your-cshub.vercel.app';
+          const frontendUrl = process.env.FRONTEND_URL || 'https://cshub-student.vercel.app';
           const quickLoginLink = `${frontendUrl}/login?code=${code}`;
 
           bot.sendMessage(

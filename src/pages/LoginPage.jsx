@@ -16,7 +16,11 @@ export function LoginPage() {
 
   const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'cshub_bot';
 
-  const [activeTab, setActiveTab] = useState('telegram'); // 'telegram' or 'admin'
+  const isAdminHost = typeof window !== 'undefined' && (
+    window.location.hostname.includes('admin') ||
+    import.meta.env.VITE_APP_ROLE === 'admin'
+  );
+  const [activeTab, setActiveTab] = useState(isAdminHost ? 'admin' : 'telegram');
   const [telegramCode, setTelegramCode] = useState(initialCode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
