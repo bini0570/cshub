@@ -8,12 +8,51 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [telegramUnregistered, setTelegramUnregistered] = useState(false);
 
   // Initialize auth session
   useEffect(() => {
     let mounted = true;
 
     async function initAuth() {
+      // 0. Telegram Mini App Native Auto-Auth
+      const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+      if (tg) {
+        try {
+          tg.ready();
+          tg.expand();
+        } catch (e) {}
+
+        if (tg.initData && API_BASE_URL) {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/auth/telegram-webapp-auth`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ initData: tg.initData }),
+            });
+            const data = await res.json();
+            if (res.ok && data.user) {
+              localStorage.setItem('cshub_token', data.token);
+              localStorage.setItem('cshub_current_user_id', data.user.id);
+              if (mounted) {
+                setUser(data.user);
+                setProfile(data.user);
+                setIsLoading(false);
+                return;
+              }
+            } else if (data.registered === false) {
+              if (mounted) {
+                setTelegramUnregistered(true);
+                setIsLoading(false);
+                return;
+              }
+            }
+          } catch (tgErr) {
+            console.warn('Telegram WebApp auth attempt failed:', tgErr.message);
+          }
+        }
+      }
+
       const token = localStorage.getItem('cshub_token');
 
       // 1. If we have a JWT token and Railway API is configured, verify session
@@ -220,6 +259,8 @@ export function AuthProvider({ children }) {
         updateProfile,
         switchMockUser,
         isConfigured: Boolean(API_BASE_URL),
+        telegramUnregistered,
+        isTelegramWebApp: typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData),
       }}
     >
       {children}

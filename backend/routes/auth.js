@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query } from '../db.js';
 
 const router = Router();
@@ -151,6 +152,95 @@ router.get('/me', authenticateToken, async (req, res) => {
     res.json({ user });
   } catch (err) {
     res.status(500).json({ error: 'Failed to retrieve profile' });
+  }
+});
+
+/**
+ * Validate Telegram Web App initData using HMAC-SHA256 signature
+ */
+export function validateTelegramWebAppData(initData, botToken) {
+  if (!initData || !botToken) return null;
+
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
+
+    params.delete('hash');
+
+    const keys = Array.from(params.keys()).sort();
+    const dataCheckString = keys.map((key) => `${key}=${params.get(key)}`).join('\n');
+
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    if (calculatedHash !== hash) {
+      console.warn('Telegram WebApp initData hash mismatch');
+      return null;
+    }
+
+    const authDate = parseInt(params.get('auth_date') || '0', 10);
+    const now = Math.floor(Date.now() / 1000);
+    // Allow up to 48 hours for auth_date
+    if (now - authDate > 172800) {
+      console.warn('Telegram WebApp initData expired');
+      return null;
+    }
+
+    const userRaw = params.get('user');
+    return userRaw ? JSON.parse(userRaw) : null;
+  } catch (err) {
+    console.error('Error validating Telegram WebApp initData:', err);
+    return null;
+  }
+}
+
+/**
+ * Authenticate student using Telegram Web App initData
+ * POST /api/auth/telegram-webapp-auth
+ * Body: { initData: "..." }
+ */
+router.post('/telegram-webapp-auth', async (req, res) => {
+  const { initData } = req.body;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!initData) {
+    return res.status(400).json({ error: 'initData is required' });
+  }
+
+  const telegramUser = validateTelegramWebAppData(initData, botToken);
+  if (!telegramUser || !telegramUser.id) {
+    return res.status(401).json({ error: 'Invalid or expired Telegram Web App data' });
+  }
+
+  try {
+    const userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [telegramUser.id]);
+    if (userRes.rows.length === 0) {
+      return res.status(403).json({
+        registered: false,
+        error: 'Please register in the Telegram Bot (@Boditibingobot) first by sharing your contact.',
+        telegram_id: telegramUser.id,
+      });
+    }
+
+    const user = userRes.rows[0];
+    delete user.password_hash;
+
+    const token = jwt.sign(
+      { id: user.id, telegram_id: user.telegram_id, role: user.role, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      token,
+      user,
+      registered: true,
+      message: 'Authenticated successfully via Telegram Web App',
+    });
+  } catch (err) {
+    console.error('Telegram WebApp auth error:', err);
+    res.status(500).json({ error: 'Authentication failed' });
   }
 });
 

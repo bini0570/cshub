@@ -2,10 +2,16 @@
   "name": "cshub",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "workspaces": [
+    "student",
+    "admin",
+    "backend"
+  ],
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
+    "build:student": "npm run --prefix student build",
+    "build:admin": "npm run --prefix admin build",
     "preview": "vite preview",
     "start:backend": "node backend/server.js",
     "start:bot": "node backend/bot.js",

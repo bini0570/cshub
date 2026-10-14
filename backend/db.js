@@ -118,6 +118,7 @@ async function runPostgresMigrations() {
       telegram_username VARCHAR(100),
       student_id VARCHAR(50),
       full_name VARCHAR(150),
+      phone VARCHAR(50),
       department VARCHAR(100),
       academic_year INT,
       role VARCHAR(30) DEFAULT 'student',
@@ -253,22 +254,32 @@ export async function query(text, params = []) {
 
   // 2. INSERT INTO users ... ON CONFLICT (telegram_id)
   if (trimmed.startsWith('INSERT INTO users')) {
-    const [id, telegram_id, telegram_username, student_id, full_name, department, academic_year, role] = params;
-    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === Number(telegram_id));
-    const userRecord = {
-      id: id || `user-${Date.now()}`,
-      telegram_id: Number(telegram_id),
-      telegram_username: telegram_username || null,
-      student_id: student_id || '',
-      full_name: full_name || '',
-      department: department || '',
-      academic_year: Number(academic_year) || 1,
-      role: role || 'student',
+    const tId = Number(params[1]);
+    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === tId);
+    let userRecord = existingIndex >= 0 ? { ...store.users[existingIndex] } : {
+      id: params[0] || `student-${tId}`,
+      telegram_id: tId,
+      role: 'student',
       created_at: new Date().toISOString(),
     };
 
+    if (trimmed.includes('phone') && params.length >= 5) {
+      // (id, telegram_id, telegram_username, full_name, phone, role)
+      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
+      userRecord.full_name = params[3] || userRecord.full_name || '';
+      userRecord.phone = params[4] || userRecord.phone || '';
+      if (params[5]) userRecord.role = params[5];
+    } else {
+      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
+      userRecord.student_id = params[3] || userRecord.student_id || '';
+      userRecord.full_name = params[4] || userRecord.full_name || '';
+      userRecord.department = params[5] || userRecord.department || '';
+      userRecord.academic_year = Number(params[6]) || userRecord.academic_year || 1;
+      if (params[7]) userRecord.role = params[7];
+    }
+
     if (existingIndex >= 0) {
-      store.users[existingIndex] = { ...store.users[existingIndex], ...userRecord };
+      store.users[existingIndex] = userRecord;
     } else {
       store.users.push(userRecord);
     }
