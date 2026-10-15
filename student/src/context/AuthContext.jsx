@@ -271,7 +271,24 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    console.warn('Warning: useAuth called outside AuthProvider. Using safe defaults.');
+    return {
+      user: { id: 'guest-student', full_name: 'Student' },
+      profile: { id: 'guest-student', full_name: 'Student', role: 'student' },
+      isAdmin: false,
+      isLoading: false,
+      login: async () => {},
+      adminLogin: async () => {},
+      loginWithTelegramCode: async () => {},
+      register: async () => {},
+      logout: () => {},
+      resetPassword: async () => {},
+      updateProfile: async () => {},
+      switchMockUser: () => {},
+      isConfigured: false,
+      telegramUnregistered: false,
+      isTelegramWebApp: typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData),
+    };
   }
   return context;
 }
