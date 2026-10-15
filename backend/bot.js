@@ -49,14 +49,40 @@ export function startTelegramBot() {
     const firstName = msg.from.first_name || 'Student';
 
     try {
-      const userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [telegramId]);
+      const userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [Number(telegramId)]);
 
       if (userRes.rows.length > 0) {
         const user = userRes.rows[0];
-        // Registered student: show Mini App launch button directly
+
+        // 1. Explicitly remove any lingering contact-sharing keyboard
+        await bot.sendMessage(
+          chatId,
+          `👋 Welcome back to **CS Hub**, ${user.full_name || firstName}!`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              remove_keyboard: true,
+            },
+          }
+        ).catch(() => {});
+
+        // 2. Ensure chat menu button is configured
+        try {
+          await bot.setChatMenuButton({
+            chat_id: chatId,
+            menu_button: {
+              type: 'web_app',
+              text: '🎓 Open CS Hub',
+              web_app: { url: frontendUrl },
+            },
+          });
+        } catch (menuErr) {
+          // ignore
+        }
+
+        // 3. Send launch card with inline Web App button
         bot.sendMessage(
           chatId,
-          `👋 Welcome back to **CS Hub**, ${user.full_name}!\n\n` +
           `Your student account is active.\n\n` +
           `Tap the button below to launch the **CS Hub Mini App** directly inside Telegram:`,
           {
@@ -111,33 +137,12 @@ export function startTelegramBot() {
 
     if (!contact) return;
 
-    // Security check: ensure the contact shared is the user's own contact
-    if (contact.user_id && contact.user_id !== telegramId) {
-      bot.sendMessage(
-        chatId,
-        '⚠️ **Security Warning**: You must share your own phone number using the button below to register.',
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            keyboard: [
-              [
-                {
-                  text: '📱 Share Phone Number to Register',
-                  request_contact: true,
-                },
-              ],
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true,
-          },
-        }
-      );
-      return;
-    }
-
     try {
-      const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || msg.from.first_name || 'Student';
-      const phone = contact.phone_number;
+      const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') ||
+                       [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') ||
+                       'Student';
+      const rawPhone = String(contact.phone_number || '').trim();
+      const phone = rawPhone.startsWith('+') ? rawPhone : (rawPhone ? `+${rawPhone}` : '');
       const username = msg.from.username || null;
       const userId = `student-${telegramId}`;
 
@@ -149,10 +154,22 @@ export function startTelegramBot() {
            full_name = EXCLUDED.full_name,
            telegram_username = EXCLUDED.telegram_username,
            phone = EXCLUDED.phone`,
-        [userId, telegramId, username, fullName, phone]
+        [userId, Number(telegramId), username, fullName, phone]
       );
 
-      // Set chat menu button specifically for this chat
+      // Step 1: Explicitly dismiss the sticky contact-sharing keyboard
+      await bot.sendMessage(
+        chatId,
+        `✅ **Phone number verified:** \`${phone}\``,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            remove_keyboard: true,
+          },
+        }
+      ).catch(() => {});
+
+      // Step 2: Set persistent chat menu button to launch Web App
       try {
         await bot.setChatMenuButton({
           chat_id: chatId,
@@ -166,13 +183,12 @@ export function startTelegramBot() {
         // ignore
       }
 
-      // Send success message with inline Web App launch button and remove contact keyboard
-      bot.sendMessage(
+      // Step 3: Send registration success message with inline Web App launch button
+      await bot.sendMessage(
         chatId,
         `🎉 **Registration Successful!**\n\n` +
-        `Welcome to CS Hub, **${fullName}**!\n` +
-        `📱 Verified Phone: \`${phone}\`\n\n` +
-        `Your student profile is active. You can now open the **CS Hub Mini App** directly inside Telegram by tapping the button below:`,
+        `Welcome to CS Hub, **${fullName}**!\n\n` +
+        `Your student profile is active. Tap the button below to launch the **CS Hub Mini App** directly inside Telegram:`,
         {
           parse_mode: 'Markdown',
           reply_markup: {

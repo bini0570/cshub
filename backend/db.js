@@ -246,14 +246,14 @@ export async function query(text, params = []) {
   const trimmed = text.trim();
 
   // 1. SELECT * FROM users WHERE telegram_id = $1
-  if (trimmed.includes('FROM users WHERE telegram_id = $1')) {
+  if (trimmed.toLowerCase().includes('from users where telegram_id = $1')) {
     const tId = Number(params[0]);
     const found = store.users.filter((u) => Number(u.telegram_id) === tId);
     return { rows: found };
   }
 
   // 2. INSERT INTO users ... ON CONFLICT (telegram_id)
-  if (trimmed.startsWith('INSERT INTO users')) {
+  if (trimmed.toLowerCase().startsWith('insert into users')) {
     const tId = Number(params[1]);
     const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === tId);
     let userRecord = existingIndex >= 0 ? { ...store.users[existingIndex] } : {
@@ -269,6 +269,11 @@ export async function query(text, params = []) {
       userRecord.full_name = params[3] || userRecord.full_name || '';
       userRecord.phone = params[4] || userRecord.phone || '';
       if (params[5]) userRecord.role = params[5];
+    } else if (params.length === 4) {
+      // (id, telegram_id, telegram_username, full_name, role)
+      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
+      userRecord.full_name = params[3] || userRecord.full_name || '';
+      userRecord.role = 'student';
     } else {
       userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
       userRecord.student_id = params[3] || userRecord.student_id || '';

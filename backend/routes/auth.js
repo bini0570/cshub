@@ -214,20 +214,30 @@ router.post('/telegram-webapp-auth', async (req, res) => {
   }
 
   try {
-    const userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [telegramUser.id]);
+    let userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [Number(telegramUser.id)]);
+    
+    // If not found in DB yet, auto-provision the student account so they are immediately granted access
     if (userRes.rows.length === 0) {
-      return res.status(403).json({
-        registered: false,
-        error: 'Please register in the Telegram Bot (@Boditibingobot) first by sharing your contact.',
-        telegram_id: telegramUser.id,
-      });
+      const fullName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ') || telegramUser.username || 'Student';
+      const newUserId = `student-${telegramUser.id}`;
+      userRes = await query(
+        `INSERT INTO users (id, telegram_id, telegram_username, full_name, role)
+         VALUES ($1, $2, $3, $4, 'student')
+         ON CONFLICT (telegram_id) DO UPDATE SET
+           full_name = EXCLUDED.full_name,
+           telegram_username = EXCLUDED.telegram_username
+         RETURNING *`,
+        [newUserId, Number(telegramUser.id), telegramUser.username || null, fullName]
+      );
     }
 
     const user = userRes.rows[0];
-    delete user.password_hash;
+    if (user) {
+      delete user.password_hash;
+    }
 
     const token = jwt.sign(
-      { id: user.id, telegram_id: user.telegram_id, role: user.role, email: user.email },
+      { id: user ? user.id : `student-${telegramUser.id}`, telegram_id: telegramUser.id, role: user?.role || 'student', email: user?.email },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
