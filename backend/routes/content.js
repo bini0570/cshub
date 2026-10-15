@@ -261,6 +261,9 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await query(`DELETE FROM content WHERE id = $1`, [id]);
+    res.json({ success: true, message: 'Content deleted successfully' });
+  } catch (err) {
+    console.error('Delete content error:', err);
     res.status(500).json({ error: 'Failed to delete content' });
   }
 });

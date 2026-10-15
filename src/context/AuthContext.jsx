@@ -81,14 +81,16 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // 2. Local fallback session
-      const savedMockUserId = localStorage.getItem('cshub_current_user_id');
-      const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-      const found = users.find((u) => u.id === (savedMockUserId || 'user-admin-1')) || users[0];
-
-      if (found && mounted) {
-        setUser({ id: found.id, email: found.email, full_name: found.full_name || found.display_name });
-        setProfile(found);
+      // 2. Local fallback session check: only restore if a token/session was saved
+      const savedAdminId = localStorage.getItem('cshub_current_user_id');
+      const savedToken = localStorage.getItem('cshub_token');
+      if (savedToken && savedAdminId) {
+        const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
+        const found = users.find((u) => u.id === savedAdminId && (u.role === 'admin' || u.role === 'super_admin'));
+        if (found && mounted) {
+          setUser({ id: found.id, email: found.email, full_name: found.full_name || found.display_name });
+          setProfile(found);
+        }
       }
       if (mounted) setIsLoading(false);
     }
@@ -144,12 +146,14 @@ export function AuthProvider({ children }) {
    */
   const adminLogin = async (email, password) => {
     setIsLoading(true);
+    const cleanEmail = (email || '').toLowerCase().trim();
+
     if (API_BASE_URL) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/admin-login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         });
 
         const data = await res.json();
@@ -164,19 +168,34 @@ export function AuthProvider({ children }) {
         setIsLoading(false);
         return data.user;
       } catch (err) {
-        setIsLoading(false);
-        throw err;
+        if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
+          setIsLoading(false);
+          throw err;
+        }
       }
     }
 
-    // Local fallback for admin login
-    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const adminUser = users.find((u) => u.role === 'admin' || u.role === 'super_admin') || users[0];
-    setUser({ id: adminUser.id, email: adminUser.email });
-    setProfile(adminUser);
-    localStorage.setItem('cshub_current_user_id', adminUser.id);
-    setIsLoading(false);
-    return adminUser;
+    // Local credential verification fallback
+    const validEmails = ['admin@cshub.edu', 'admin@cshub.dev', 'admin', 'administrator'];
+    if (validEmails.includes(cleanEmail) && password === 'Admin@123') {
+      const adminUser = {
+        id: 'admin-primary',
+        full_name: 'CS Hub Administrator',
+        display_name: 'CS Hub Administrator',
+        email: cleanEmail.includes('@') ? cleanEmail : 'admin@cshub.edu',
+        role: 'super_admin',
+        created_at: new Date().toISOString(),
+      };
+      localStorage.setItem('cshub_token', 'local_admin_jwt_' + Date.now());
+      localStorage.setItem('cshub_current_user_id', adminUser.id);
+      setUser(adminUser);
+      setProfile(adminUser);
+      setIsLoading(false);
+      return adminUser;
+    } else {
+      setIsLoading(false);
+      throw new Error('Invalid administrator credentials. (Default: admin@cshub.edu / Admin@123)');
+    }
   };
 
   // General login wrapper

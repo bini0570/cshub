@@ -79,7 +79,7 @@ const PAGES_NAV = [
 ];
 
 export function App() {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin, adminLogin, logout, isLoading } = useAuth();
 
   const [page, setPage] = useState('dashboard');
   const [sideOpen, setSideOpen] = useState(false);
@@ -88,13 +88,63 @@ export function App() {
   const [studentSearch, setStudentSearch] = useState('');
   const [toastMessage, setToastMessage] = useState('');
 
-  // Main Data States
-  const [courses, setCourses] = useState(DEFAULT_COURSES);
-  const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
-  const [quizzes, setQuizzes] = useState(DEFAULT_QUIZZES);
-  const [exams, setExams] = useState(DEFAULT_EXAMS);
-  const [students, setStudents] = useState(DEFAULT_STUDENTS);
-  const [submissions, setSubmissions] = useState(DEFAULT_SUBMISSIONS);
+  // Admin Login Form State
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      await adminLogin(loginEmail, loginPassword);
+      showToast('Welcome back, Administrator!');
+    } catch (err) {
+      setLoginError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Main Data States with Local Storage Persistence
+  const [courses, setCourses] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_courses');
+      return saved ? JSON.parse(saved) : DEFAULT_COURSES;
+    } catch { return DEFAULT_COURSES; }
+  });
+  const [materials, setMaterials] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_materials');
+      return saved ? JSON.parse(saved) : DEFAULT_MATERIALS;
+    } catch { return DEFAULT_MATERIALS; }
+  });
+  const [quizzes, setQuizzes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_quizzes');
+      return saved ? JSON.parse(saved) : DEFAULT_QUIZZES;
+    } catch { return DEFAULT_QUIZZES; }
+  });
+  const [exams, setExams] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_exams');
+      return saved ? JSON.parse(saved) : DEFAULT_EXAMS;
+    } catch { return DEFAULT_EXAMS; }
+  });
+  const [students, setStudents] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_students');
+      return saved ? JSON.parse(saved) : DEFAULT_STUDENTS;
+    } catch { return DEFAULT_STUDENTS; }
+  });
+  const [submissions, setSubmissions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cshub_admin_submissions');
+      return saved ? JSON.parse(saved) : DEFAULT_SUBMISSIONS;
+    } catch { return DEFAULT_SUBMISSIONS; }
+  });
   const [admins, setAdmins] = useState(DEFAULT_ADMINS);
 
   // Broadcast State
@@ -230,8 +280,9 @@ export function App() {
     const data = Object.fromEntries(formData.entries());
 
     if (modalType === 'course') {
+      let updated;
       if (editingItem) {
-        setCourses(courses.map((c) => (c.id === editingItem.id ? { ...c, ...data } : c)));
+        updated = courses.map((c) => (c.id === editingItem.id ? { ...c, ...data } : c));
         showToast('Course updated');
       } else {
         const newCourse = {
@@ -241,12 +292,15 @@ export function App() {
           year: data.year,
           status: data.status || 'Published',
         };
-        setCourses([newCourse, ...courses]);
+        updated = [newCourse, ...courses];
         showToast('Course created');
       }
+      setCourses(updated);
+      try { localStorage.setItem('cshub_admin_courses', JSON.stringify(updated)); } catch (err) {}
     } else if (modalType === 'material') {
+      let updated;
       if (editingItem) {
-        setMaterials(materials.map((m) => (m.id === editingItem.id ? { ...m, ...data, fileUrl: uploadedFileUrl || m.fileUrl } : m)));
+        updated = materials.map((m) => (m.id === editingItem.id ? { ...m, ...data, fileUrl: uploadedFileUrl || m.fileUrl } : m));
         showToast('Material updated');
       } else {
         const newMat = {
@@ -256,12 +310,15 @@ export function App() {
           status: data.status || 'Published',
           fileUrl: uploadedFileUrl,
         };
-        setMaterials([newMat, ...materials]);
+        updated = [newMat, ...materials];
         showToast('Material published to catalog');
       }
+      setMaterials(updated);
+      try { localStorage.setItem('cshub_admin_materials', JSON.stringify(updated)); } catch (err) {}
     } else if (modalType === 'quiz') {
+      let updated;
       if (editingItem) {
-        setQuizzes(quizzes.map((q) => (q.id === editingItem.id ? { ...q, title: data.title, questions: Number(data.questions) || 10, status: data.status } : q)));
+        updated = quizzes.map((q) => (q.id === editingItem.id ? { ...q, title: data.title, questions: Number(data.questions) || 10, status: data.status } : q));
         showToast('Quiz updated');
       } else {
         const newQuiz = {
@@ -270,12 +327,15 @@ export function App() {
           questions: Number(data.questions) || 10,
           status: data.status || 'Published',
         };
-        setQuizzes([newQuiz, ...quizzes]);
+        updated = [newQuiz, ...quizzes];
         showToast('Quiz created');
       }
+      setQuizzes(updated);
+      try { localStorage.setItem('cshub_admin_quizzes', JSON.stringify(updated)); } catch (err) {}
     } else if (modalType === 'exam') {
+      let updated;
       if (editingItem) {
-        setExams(exams.map((ex) => (ex.id === editingItem.id ? { ...ex, name: data.name, questions: Number(data.questions) || 100 } : ex)));
+        updated = exams.map((ex) => (ex.id === editingItem.id ? { ...ex, name: data.name, questions: Number(data.questions) || 100 } : ex));
         showToast('Exam set updated');
       } else {
         const newExam = {
@@ -283,9 +343,11 @@ export function App() {
           name: data.name,
           questions: Number(data.questions) || 100,
         };
-        setExams([newExam, ...exams]);
+        updated = [newExam, ...exams];
         showToast('Exam set added');
       }
+      setExams(updated);
+      try { localStorage.setItem('cshub_admin_exams', JSON.stringify(updated)); } catch (err) {}
     } else if (modalType === 'admin') {
       const newAdmin = {
         id: `a-${Date.now()}`,
@@ -370,44 +432,194 @@ export function App() {
     showToast('Administrator removed');
   };
 
+  // 1. Loading State
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f5f7fb] flex items-center justify-center text-slate-500 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs font-semibold">Loading Admin Console...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated Admin Login Gate
+  if (!user || (!isAdmin && profile?.role !== 'super_admin' && profile?.role !== 'admin')) {
+    return (
+      <div className="min-h-screen bg-[#0b1329] text-slate-100 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-md bg-[#111c38] border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center mx-auto mb-3 text-2xl font-black shadow-inner">
+              🛡️
+            </div>
+            <h1 className="text-xl font-extrabold tracking-tight text-white">CS Hub Administration</h1>
+            <p className="text-xs text-slate-400 mt-1">Sign in with your staff or administrator account</p>
+          </div>
+
+          {loginError && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Admin Email or Username
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="admin@cshub.edu"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full mt-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs py-3 rounded-xl shadow-lg transition active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isLoggingIn ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <span>Sign In to Admin Console →</span>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-4 border-t border-slate-800 text-center">
+            <p className="text-[11px] text-slate-400">
+              Default access: <span className="font-mono text-blue-400">admin@cshub.edu</span> / <span className="font-mono text-blue-400">Admin@123</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Authenticated Admin Dashboard Layout (Responsive Desktop & Mobile)
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-[#172033] flex justify-center items-center">
-      {/* Mobile-First App Container */}
-      <div className="w-full max-w-[440px] h-[100dvh] min-h-[560px] mx-auto bg-[#f5f7fb] flex flex-col border border-[#dbe3ee] relative overflow-hidden font-sans shadow-2xl">
+    <div className="min-h-screen bg-[#f5f7fb] text-[#172033] flex flex-col md:flex-row font-sans">
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden md:flex md:w-64 bg-white border-r border-[#dbe3ee] flex-col justify-between shrink-0 h-screen sticky top-0 p-4 z-30 shadow-xs">
+        <div>
+          <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
+              🛡️
+            </div>
+            <div>
+              <div className="font-bold text-sm tracking-tight text-slate-900">CS Hub Admin</div>
+              <div className="text-[10px] text-slate-400 font-medium">Management Console</div>
+            </div>
+          </div>
+
+          <nav className="mt-4 space-y-1">
+            {PAGES_NAV.map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => navigateTo(id)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                  page === id
+                    ? 'bg-blue-50 text-[#2563eb] font-bold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span>{label}</span>
+                {page === id && <span className="text-[10px]">●</span>}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <div className="text-xs font-bold truncate text-slate-800">{displayName}</div>
+              <div className="text-[10px] text-slate-400 truncate">{user?.email || 'admin@cshub.edu'}</div>
+            </div>
+            <button
+              onClick={() => logout()}
+              title="Sign Out"
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition cursor-pointer"
+            >
+              Logout
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Active & Authenticated</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Top Header */}
-        <header className="h-[58px] bg-white border-b border-[#e5eaf1] flex items-center px-3.5 gap-2.5 shrink-0 z-20">
+        <header className="h-[58px] bg-white border-b border-[#e5eaf1] flex items-center px-4 md:px-6 gap-3 shrink-0 z-20 sticky top-0 shadow-xs">
           <button
             onClick={() => setSideOpen(true)}
-            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#334155] text-base flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
+            className="md:hidden w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#334155] text-base flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
           >
             ☰
           </button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 leading-none">
-              <strong className="text-[15px] font-bold tracking-tight">CS Hub</strong>
+            <div className="flex items-center gap-2">
+              <strong className="text-base font-bold tracking-tight text-slate-900">
+                {SUBTITLES[page] || 'Administration'}
+              </strong>
               <span className="text-[#2563eb] text-[10px] font-extrabold uppercase bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                 ADMIN
               </span>
             </div>
-            <div className="text-[11px] text-[#778397] truncate mt-0.5">{SUBTITLES[page] || 'Administration'}</div>
           </div>
-          <button
-            onClick={() => navigateTo('profile')}
-            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#2563eb] font-bold text-xs flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
-          >
-            {displayName ? displayName.charAt(0).toUpperCase() : 'A'}
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigateTo('profile')}
+              className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#2563eb] font-bold text-xs flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
+            >
+              {displayName ? displayName.charAt(0).toUpperCase() : 'A'}
+            </button>
+            <button
+              onClick={() => logout()}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 transition cursor-pointer"
+            >
+              Sign Out
+            </button>
+          </div>
         </header>
 
-        {/* Slide Drawer & Backdrop */}
+        {/* Mobile Slide Drawer */}
         {sideOpen && (
           <div
             onClick={() => setSideOpen(false)}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity"
+            className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity"
           />
         )}
         <div
-          className={`absolute inset-y-0 left-0 right-[55px] bg-white z-50 p-4 shadow-[8px_0_30px_rgba(23,32,51,0.25)] overflow-y-auto transition-transform duration-300 ease-out flex flex-col justify-between ${
+          className={`md:hidden fixed inset-y-0 left-0 right-[55px] bg-white z-50 p-4 shadow-[8px_0_30px_rgba(23,32,51,0.25)] overflow-y-auto transition-transform duration-300 ease-out flex flex-col justify-between ${
             sideOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -437,16 +649,19 @@ export function App() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 mt-6">
-            <div className="flex items-center gap-2 text-[11px] text-[#778397]">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Railway Backend & Bot Connected
-            </div>
+          <div className="pt-4 border-t border-slate-100 mt-6 flex justify-between items-center">
+            <span className="text-xs text-slate-400">{user?.email}</span>
+            <button
+              onClick={() => logout()}
+              className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
 
-        {/* Main Body */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-3.5 pb-5">
+        {/* Main Body Canvas */}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {/* PAGE: DASHBOARD */}
           {page === 'dashboard' && (
             <div>
@@ -1146,8 +1361,8 @@ export function App() {
           )}
         </main>
 
-        {/* Bottom Navigation */}
-        <nav className="h-[62px] shrink-0 grid grid-cols-4 bg-white border-t border-[#e2e8f0] px-1 py-1 z-10">
+        {/* Bottom Navigation (Mobile Only) */}
+        <nav className="md:hidden h-[62px] shrink-0 grid grid-cols-4 bg-white border-t border-[#e2e8f0] px-1 py-1 z-10 sticky bottom-0">
           <button
             onClick={() => navigateTo('dashboard')}
             className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition active:scale-95 ${

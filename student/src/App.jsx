@@ -42,32 +42,125 @@ const DEFAULT_EXAMS = [
   { id: 'e-6', name: 'Software Engineering', q: 80, desc: 'SDLC, Agile, UML modeling, testing methodologies' },
 ];
 
-const SAMPLE_QUESTIONS = [
-  {
-    q: 'What is the worst-case time complexity of quicksort when selecting the first element as pivot on an already sorted array?',
-    options: ['O(n log n)', 'O(n²)', 'O(n)', 'O(log n)'],
-    correct: 1,
-    explanation: 'When quicksort always picks the first element in a sorted array, the partitions become maximally unbalanced (0 and n-1), degrading to O(n²).',
-  },
-  {
-    q: 'Which of the following data structures operates on a First-In, First-Out (FIFO) principle?',
-    options: ['Stack', 'Queue', 'Binary Tree', 'Max Heap'],
-    correct: 1,
-    explanation: 'A Queue enforces FIFO (First-In, First-Out), where insertions occur at the rear and deletions at the front.',
-  },
-  {
-    q: 'In a binary search tree (BST), which traversal produces the keys in sorted ascending order?',
-    options: ['Pre-order', 'In-order', 'Post-order', 'Level-order'],
-    correct: 1,
-    explanation: 'An in-order traversal (Left, Root, Right) of a Binary Search Tree always visits nodes in non-decreasing sorted order.',
-  },
-  {
-    q: 'Which layer of the OSI model is responsible for end-to-end reliable transmission and flow control?',
-    options: ['Network Layer', 'Transport Layer', 'Data Link Layer', 'Session Layer'],
-    correct: 1,
-    explanation: 'The Transport Layer (Layer 4, including TCP) handles flow control, error checking, and end-to-end delivery.',
-  },
-];
+const COURSE_QUESTIONS = {
+  'Data Structures': [
+    {
+      q: 'What is the tightest worst-case time complexity of QuickSort when a naive first-element pivot selection is used on an already sorted array?',
+      options: ['O(n log n)', 'O(n²)', 'O(n)', 'O(log n)'],
+      correct: 1,
+      explanation: 'When quicksort always picks the first element in an already sorted array, partitions become maximally unbalanced (0 and n-1), degrading time complexity to O(n²).'
+    },
+    {
+      q: 'Which of the following data structures operates strictly on a First-In, First-Out (FIFO) principle?',
+      options: ['Stack', 'Queue', 'Binary Search Tree', 'Max Heap'],
+      correct: 1,
+      explanation: 'A Queue enforces FIFO (First-In, First-Out), where items are inserted at the back and removed from the front.'
+    },
+    {
+      q: 'In a Binary Search Tree (BST), which tree traversal visits all nodes in sorted ascending order?',
+      options: ['Pre-order', 'In-order', 'Post-order', 'Level-order'],
+      correct: 1,
+      explanation: 'In-order traversal (Left, Root, Right) of a valid BST always visits keys in strictly non-decreasing sorted order.'
+    },
+    {
+      q: 'What technique resolves hash collisions by placing colliding elements into a linked list at the same bucket?',
+      options: ['Linear Probing', 'Quadratic Probing', 'Separate Chaining', 'Double Hashing'],
+      correct: 2,
+      explanation: 'Separate chaining stores all elements hashing to the same bucket in an auxiliary linked list or tree.'
+    },
+  ],
+  'Database Systems': [
+    {
+      q: 'Which Normal Form requires 1NF compliance and mandates that every non-prime attribute is fully functionally dependent on the entire candidate key, eliminating partial dependencies?',
+      options: ['1NF', '2NF', '3NF', 'BCNF'],
+      correct: 1,
+      explanation: 'Second Normal Form (2NF) eliminates partial functional dependencies on composite primary keys.'
+    },
+    {
+      q: 'Which property of ACID transactions guarantees that committed transactions survive subsequent power failures or server crashes?',
+      options: ['Atomicity', 'Consistency', 'Isolation', 'Durability'],
+      correct: 3,
+      explanation: 'Durability guarantees that once a transaction commits, its effects remain permanently recorded even in the event of hardware or system failure.'
+    },
+    {
+      q: 'What index structure is most widely used in relational databases to support fast range queries and equality lookups?',
+      options: ['Hash Index', 'B+ Tree', 'Inverted Index', 'Bitmap Index'],
+      correct: 1,
+      explanation: 'B+ Trees keep data sorted with sequential leaf pointers, providing O(log n) searches and highly efficient range traversals.'
+    },
+  ],
+  'Computer Networks': [
+    {
+      q: 'Which layer of the OSI 7-layer model is responsible for reliable process-to-process communication, flow control, and end-to-end congestion management?',
+      options: ['Network Layer', 'Transport Layer', 'Data Link Layer', 'Application Layer'],
+      correct: 1,
+      explanation: 'The Transport Layer (Layer 4, including TCP) provides process-to-process delivery, flow control, and error recovery.'
+    },
+    {
+      q: 'During the standard TCP 3-way handshake to establish a connection, which flags are set in the second packet sent from the server back to the client?',
+      options: ['SYN only', 'ACK only', 'SYN + ACK', 'FIN + ACK'],
+      correct: 2,
+      explanation: 'The server responds with SYN + ACK, simultaneously acknowledging the client sequence number and proposing its own starting sequence.'
+    },
+    {
+      q: 'How many usable host IP addresses are available in a subnet with the CIDR prefix /28?',
+      options: ['14', '16', '30', '32'],
+      correct: 0,
+      explanation: 'A /28 subnet leaves 32 - 28 = 4 host bits (2⁴ = 16 total addresses). Subtracting network and broadcast addresses leaves 14 usable hosts.'
+    },
+  ],
+  'Operating Systems': [
+    {
+      q: 'Which of the following is NOT one of the four necessary Coffman conditions required for a system deadlock to occur?',
+      options: ['Mutual Exclusion', 'Hold and Wait', 'Preemption Allowed', 'Circular Wait'],
+      correct: 2,
+      explanation: 'The condition is "No Preemption". If resource preemption is permitted, deadlocks cannot persist.'
+    },
+    {
+      q: 'What hardware component accelerates virtual-to-physical memory address translation by caching recently used page table entries inside the CPU?',
+      options: ['Translation Lookaside Buffer (TLB)', 'DMA Controller', 'Instruction Register', 'L3 Cache'],
+      correct: 0,
+      explanation: 'The TLB is a high-speed hardware cache located within the MMU that stores recent page-to-frame mappings.'
+    },
+    {
+      q: 'Which CPU scheduling algorithm assigns a fixed time quantum to each ready process in cyclic order without starvation?',
+      options: ['First-Come, First-Served', 'Shortest Job First', 'Round Robin', 'Priority Scheduling'],
+      correct: 2,
+      explanation: 'Round Robin allocates a fixed time slice to each process in FIFO order, preventing starvation.'
+    },
+  ],
+  'Artificial Intelligence': [
+    {
+      q: 'Which condition must a heuristic h(n) satisfy in the A* graph search algorithm to guarantee finding the optimal shortest path?',
+      options: ['Monotonicity / Admissibility', 'Completeness', 'Greedy convergence', 'Linearity'],
+      correct: 0,
+      explanation: 'An admissible heuristic never overestimates the true cost to reach the goal, guaranteeing A* optimality.'
+    },
+    {
+      q: 'What metric is used by the ID3 algorithm to calculate the reduction in uncertainty when selecting the best attribute to split a decision tree?',
+      options: ['Information Gain', 'Gini Impurity', 'Mean Squared Error', 'Cross Entropy'],
+      correct: 0,
+      explanation: 'ID3 calculates Information Gain based on Shannon entropy reduction to choose split features.'
+    },
+  ],
+  'Software Engineering': [
+    {
+      q: 'Which creational design pattern ensures that a class has only one instance and provides a global access point to it across an application?',
+      options: ['Factory Method', 'Singleton', 'Observer', 'Adapter'],
+      correct: 1,
+      explanation: 'The Singleton pattern restricts instantiation of a class to a single global instance.'
+    },
+    {
+      q: 'In clean software architecture, high cohesion and loose coupling are recommended because they:',
+      options: ['Increase testability and isolate module modifications', 'Maximize CPU throughput', 'Minimize memory consumption', 'Eliminate runtime dependencies'],
+      correct: 0,
+      explanation: 'High cohesion ensures a module has a focused purpose, while loose coupling minimizes inter-module dependencies for easier maintenance.'
+    },
+  ],
+};
+
+const SAMPLE_QUESTIONS = COURSE_QUESTIONS['Data Structures'];
+
 
 export function App() {
   const { user, profile } = useAuth();
@@ -192,36 +285,89 @@ export function App() {
     }
   }, [page, playerMode, examSubmitted]);
 
-  // Fetch Live Backend Data with Graceful Fallback
+  // Fetch Live Backend Data with Graceful Fallback & Persistence
   useEffect(() => {
     async function loadData() {
+      // 1. Sync custom courses and materials created by Admin
+      const localAdminCourses = (() => {
+        try {
+          const saved = localStorage.getItem('cshub_admin_courses');
+          return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+      })();
+
+      const localAdminMaterials = (() => {
+        try {
+          const saved = localStorage.getItem('cshub_admin_materials');
+          return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+      })();
+
+      // Combined courses starting with DEFAULT_COURSES
+      const combinedCourses = [...DEFAULT_COURSES];
+      localAdminCourses.forEach((lac) => {
+        if (!combinedCourses.some((c) => c.name === lac.name || c.code === lac.code)) {
+          combinedCourses.push({
+            id: lac.id,
+            name: lac.name,
+            code: lac.code,
+            year: lac.year || '3rd Year',
+            sem: 'Semester I',
+            count: 6,
+          });
+        }
+      });
+
+      // Combined materials starting with DEFAULT_MATERIALS
+      const adminMats = localAdminMaterials.map((lam, idx) => ({
+        id: lam.id || `admin-mat-${idx}`,
+        title: lam.title,
+        course: lam.course || 'Data Structures',
+        category: 'notes',
+        type: 'PDF',
+        size: '2.5 MB',
+        date: 'Oct 2026',
+        external_url: lam.fileUrl || '',
+      }));
+
+      const combinedMaterials = [...DEFAULT_MATERIALS, ...adminMats];
+
       try {
         const [cats, cont] = await Promise.all([getCategories(), getPublishedContent()]);
         if (cats && cats.length > 0) {
-          const mappedCourses = cats.map((cat, idx) => ({
-            id: cat.id || `c-${idx}`,
-            name: cat.name,
-            code: cat.code || `CS${301 + idx}`,
-            year: cat.academic_year || (idx % 2 === 0 ? '3rd Year' : '4th Year'),
-            sem: cat.academic_semester || (idx % 3 === 0 ? 'Semester II' : 'Semester I'),
-            count: 8 + idx * 2,
-          }));
-          setCourses(mappedCourses);
+          cats.forEach((cat, idx) => {
+            if (!combinedCourses.some((c) => c.name === cat.name)) {
+              combinedCourses.push({
+                id: cat.id || `cat-${idx}`,
+                name: cat.name,
+                code: cat.code || `CS${301 + idx}`,
+                year: cat.academic_year || (idx % 2 === 0 ? '3rd Year' : '4th Year'),
+                sem: cat.academic_semester || (idx % 3 === 0 ? 'Semester II' : 'Semester I'),
+                count: 8 + idx * 2,
+              });
+            }
+          });
         }
         if (cont && cont.length > 0) {
-          const mappedMat = cont.map((item, idx) => ({
-            id: item.id || `m-${idx}`,
-            title: item.title,
-            course: item.category_name || item.tags?.[0] || 'Data Structures',
-            category: item.content_type === 'resource' ? 'notes' : 'exams',
-            type: item.content_type === 'resource' ? 'PDF' : 'Slides',
-            size: item.file_size || '2.4 MB',
-            date: 'Oct 2026',
-            external_url: item.download_url || item.external_url,
-          }));
-          setMaterials(mappedMat);
+          cont.forEach((item, idx) => {
+            if (!combinedMaterials.some((m) => m.title === item.title)) {
+              combinedMaterials.push({
+                id: item.id || `live-m-${idx}`,
+                title: item.title,
+                course: item.category_name || item.tags?.[0] || 'Data Structures',
+                category: item.content_type === 'resource' ? 'notes' : 'exams',
+                type: item.content_type === 'resource' ? 'PDF' : 'Slides',
+                size: item.file_size || '2.4 MB',
+                date: 'Oct 2026',
+                external_url: item.download_url || item.external_url,
+              });
+            }
+          });
         }
       } catch (err) {}
+
+      setCourses(combinedCourses);
+      setMaterials(combinedMaterials);
     }
     loadData();
   }, []);
@@ -349,13 +495,24 @@ export function App() {
     showToast('🎉 Submission received! Admin will review shortly.');
   };
 
+  // Dynamic question set based on active course or exit exam
+  const currentQuestions = useMemo(() => {
+    if (activeExam?.name && COURSE_QUESTIONS[activeExam.name]) {
+      return COURSE_QUESTIONS[activeExam.name];
+    }
+    if (activeQuiz?.course && COURSE_QUESTIONS[activeQuiz.course]) {
+      return COURSE_QUESTIONS[activeQuiz.course];
+    }
+    return SAMPLE_QUESTIONS;
+  }, [activeExam, activeQuiz]);
+
   // Calculate Exam Score
   const calculateScore = () => {
     let correct = 0;
-    SAMPLE_QUESTIONS.forEach((q, i) => {
+    currentQuestions.forEach((q, i) => {
       if (examAnswers[i] === q.correct) correct++;
     });
-    return { correct, total: SAMPLE_QUESTIONS.length, percentage: Math.round((correct / SAMPLE_QUESTIONS.length) * 100) };
+    return { correct, total: currentQuestions.length, percentage: Math.round((correct / currentQuestions.length) * 100) };
   };
 
   return (
@@ -1085,7 +1242,7 @@ export function App() {
                     {page === 'quiz-view' ? activeQuiz?.title : activeExam?.name}
                   </div>
                   <div className="text-xs font-extrabold mt-0.5">
-                    Question {currentQuestionIdx + 1} of {SAMPLE_QUESTIONS.length}
+                    Question {currentQuestionIdx + 1} of {currentQuestions.length}
                   </div>
                 </div>
 
@@ -1132,14 +1289,14 @@ export function App() {
                   isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
                 }`}>
                   <p className="text-xs font-bold leading-relaxed mb-4 text-slate-800 dark:text-slate-100">
-                    {SAMPLE_QUESTIONS[currentQuestionIdx].q}
+                    {currentQuestions[currentQuestionIdx]?.q}
                   </p>
 
                   {/* Options */}
                   <div className="space-y-2">
-                    {SAMPLE_QUESTIONS[currentQuestionIdx].options.map((opt, idx) => {
+                    {currentQuestions[currentQuestionIdx]?.options.map((opt, idx) => {
                       const isChosen = selectedAnswer === idx || examAnswers[currentQuestionIdx] === idx;
-                      const isCorrect = idx === SAMPLE_QUESTIONS[currentQuestionIdx].correct;
+                      const isCorrect = idx === currentQuestions[currentQuestionIdx]?.correct;
                       const showResult = playerMode === 'practice' && selectedAnswer !== null;
 
                       let style = isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-[#f8fafc] border-slate-200 text-slate-700';
@@ -1170,7 +1327,7 @@ export function App() {
                     <div className="mt-3.5 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-xs">
                       <b className="text-blue-800 dark:text-blue-300 block mb-0.5">Explanation:</b>
                       <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
-                        {SAMPLE_QUESTIONS[currentQuestionIdx].explanation}
+                        {currentQuestions[currentQuestionIdx]?.explanation}
                       </p>
                     </div>
                   )}
@@ -1189,7 +1346,7 @@ export function App() {
                       Previous
                     </button>
 
-                    {currentQuestionIdx < SAMPLE_QUESTIONS.length - 1 ? (
+                    {currentQuestionIdx < currentQuestions.length - 1 ? (
                       <button
                         onClick={() => {
                           triggerHaptic('light');
