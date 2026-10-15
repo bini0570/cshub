@@ -61,6 +61,7 @@ function getLocalStore() {
     submissions: [],
     bookmarks: [],
     audit_logs: [],
+    exam_attempts: [],
   };
   saveLocalStore(initial);
   return initial;
@@ -205,6 +206,19 @@ async function runPostgresMigrations() {
       target_type VARCHAR(50),
       target_id VARCHAR(64),
       details JSONB,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS exam_attempts (
+      id VARCHAR(64) PRIMARY KEY,
+      user_id VARCHAR(64) NOT NULL,
+      student_name VARCHAR(150),
+      course_name VARCHAR(100) NOT NULL,
+      total_questions INT NOT NULL,
+      score INT NOT NULL,
+      percentage NUMERIC(5, 2) NOT NULL,
+      time_taken_seconds INT NOT NULL,
+      answers_breakdown JSONB DEFAULT '{}',
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
   `;
@@ -397,6 +411,45 @@ export async function query(text, params = []) {
   // 13. SELECT * FROM audit_logs
   if (trimmed.includes('FROM audit_logs')) {
     return { rows: store.audit_logs || [] };
+  }
+
+  // 14. INSERT INTO exam_attempts
+  if (trimmed.toLowerCase().startsWith('insert into exam_attempts')) {
+    const [id, user_id, student_name, course_name, total_questions, score, percentage, time_taken_seconds, answers_breakdown] = params;
+    const attempt = {
+      id: id || `attempt-${Date.now()}`,
+      user_id,
+      student_name: student_name || 'Student',
+      course_name,
+      total_questions: Number(total_questions),
+      score: Number(score),
+      percentage: Number(percentage),
+      time_taken_seconds: Number(time_taken_seconds),
+      answers_breakdown: typeof answers_breakdown === 'string' ? JSON.parse(answers_breakdown) : (answers_breakdown || {}),
+      created_at: new Date().toISOString(),
+    };
+    store.exam_attempts = store.exam_attempts || [];
+    store.exam_attempts.push(attempt);
+    saveLocalStore(store);
+    return { rows: [attempt] };
+  }
+
+  // 15. SELECT ... FROM exam_attempts
+  if (trimmed.toLowerCase().includes('from exam_attempts')) {
+    let list = store.exam_attempts || [];
+    if (trimmed.includes('LOWER(course_name) = LOWER($1)')) {
+      const cName = String(params[0]).toLowerCase();
+      list = list.filter((a) => a.course_name.toLowerCase() === cName);
+      list.sort((a, b) => b.score - a.score || a.time_taken_seconds - b.time_taken_seconds);
+      return { rows: list.slice(0, 10) };
+    }
+    if (trimmed.includes('user_id = $1')) {
+      const uId = String(params[0]);
+      list = list.filter((a) => a.user_id === uId);
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      return { rows: list.slice(0, 20) };
+    }
+    return { rows: list };
   }
 
   // Default fallback empty result

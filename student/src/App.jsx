@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
-import { getCategories, getPublishedContent, createSubmission } from './lib/api';
+import { getCategories, getPublishedContent, createSubmission, submitExamAttempt, getExamLeaderboard, getMyExamHistory } from './lib/api';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -185,6 +185,15 @@ export function App() {
   const [examSubmitted, setExamSubmitted] = useState(false);
   const [examTimeLeft, setExamTimeLeft] = useState(600); // 10 minutes timer
 
+  // Department Leaderboard & Exam History State
+  const [examSubTab, setExamSubTab] = useState('exams'); // 'exams' | 'leaderboard' | 'history'
+  const [leaderboardCourse, setLeaderboardCourse] = useState('Data Structures');
+  const [leaderboardList, setLeaderboardList] = useState([]);
+  const [examHistoryList, setExamHistoryList] = useState([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSubmittingExam, setIsSubmittingExam] = useState(false);
+
   // Main Data States
   const [courses, setCourses] = useState(DEFAULT_COURSES);
   const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
@@ -263,7 +272,7 @@ export function App() {
         setExamTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            setExamSubmitted(true);
+            handleFinishExam();
             triggerHaptic('warning');
             return 0;
           }
@@ -503,6 +512,79 @@ export function App() {
     });
     return { correct, total: currentQuestions.length, percentage: Math.round((correct / currentQuestions.length) * 100) };
   };
+
+  // Finish & Submit Exam Attempt to Database / Leaderboard
+  const handleFinishExam = async () => {
+    if (examSubmitted || isSubmittingExam) return;
+    triggerHaptic('success');
+    setExamSubmitted(true);
+    setIsSubmittingExam(true);
+
+    const scoreData = calculateScore();
+    const timeTaken = playerMode === 'exam' ? (activeExam ? 900 : 600) - examTimeLeft : 0;
+    const courseName = activeExam?.name || activeQuiz?.course || 'Data Structures';
+
+    try {
+      await submitExamAttempt({
+        course_name: courseName,
+        total_questions: scoreData.total,
+        score: scoreData.correct,
+        percentage: scoreData.percentage,
+        time_taken_seconds: Math.max(timeTaken, 1),
+        answers_breakdown: examAnswers,
+        student_name: profile?.full_name || user?.full_name || 'Student',
+        user_id: user?.id,
+      });
+      showToast('🏆 Score saved to Department Leaderboard!');
+      getExamLeaderboard(courseName).then((data) => {
+        if (data) setLeaderboardList(data);
+      }).catch(() => {});
+      getMyExamHistory().then((data) => {
+        if (data) setExamHistoryList(data);
+      }).catch(() => {});
+    } catch (err) {
+      console.warn('Failed to submit exam attempt:', err);
+    } finally {
+      setIsSubmittingExam(false);
+    }
+  };
+
+  // Fetch Leaderboard for Selected Course
+  const fetchLeaderboard = async (courseName) => {
+    setIsLoadingLeaderboard(true);
+    try {
+      const data = await getExamLeaderboard(courseName);
+      setLeaderboardList(data || []);
+    } catch (err) {
+      console.warn('Leaderboard fetch error:', err);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  };
+
+  // Fetch Student's Personal Exam Attempts History
+  const fetchHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const data = await getMyExamHistory();
+      setExamHistoryList(data || []);
+    } catch (err) {
+      console.warn('History fetch error:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Auto-fetch when switching tabs on the exam page
+  useEffect(() => {
+    if (page === 'exam') {
+      if (examSubTab === 'leaderboard') {
+        fetchLeaderboard(leaderboardCourse);
+      } else if (examSubTab === 'history') {
+        fetchHistory();
+      }
+    }
+  }, [page, examSubTab, leaderboardCourse]);
 
   return (
     <div className={`min-h-screen flex justify-center items-center ${isDark ? 'bg-[#0f172a] text-slate-100' : 'bg-[#f5f7fb] text-[#172033]'}`}>
@@ -1167,30 +1249,251 @@ export function App() {
                 </p>
               </div>
 
-              {/* Subjects List */}
-              <div className="space-y-2.5">
-                {exams.map((ex) => (
-                  <div
-                    key={ex.id}
-                    onClick={() => handleStartExam(ex)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer active:scale-98 transition shadow-xs flex items-center justify-between ${
-                      isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200 hover:border-emerald-300'
+              {/* Sub-Tabs: Mock Exams | Leaderboard | My History */}
+              <div className="flex bg-slate-200 dark:bg-slate-800/80 rounded-xl p-1 gap-1 text-xs font-bold">
+                {[
+                  { id: 'exams', label: 'Mock Exams' },
+                  { id: 'leaderboard', label: '🏆 Leaderboard' },
+                  { id: 'history', label: '📊 My History' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setExamSubTab(tab.id);
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg transition text-center ${
+                      examSubTab === tab.id
+                        ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <div className="min-w-0 flex-1 pr-2">
-                      <h4 className="text-xs font-bold">{ex.name}</h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{ex.desc}</p>
-                      <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
-                        {ex.q} Practice Questions
-                      </div>
-                    </div>
-
-                    <button className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs shrink-0">
-                      Practice →
-                    </button>
-                  </div>
+                    {tab.label}
+                  </button>
                 ))}
               </div>
+
+              {/* TAB 1: MOCK EXAMS LIST */}
+              {examSubTab === 'exams' && (
+                <div className="space-y-2.5">
+                  {exams.map((ex) => (
+                    <div
+                      key={ex.id}
+                      onClick={() => handleStartExam(ex)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer active:scale-98 transition shadow-xs flex items-center justify-between ${
+                        isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold">{ex.name}</h4>
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerHaptic('light');
+                              setLeaderboardCourse(ex.name);
+                              setExamSubTab('leaderboard');
+                            }}
+                            className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                          >
+                            🏆 Rank
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5 truncate">{ex.desc}</p>
+                        <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                          {ex.q} Practice Questions
+                        </div>
+                      </div>
+
+                      <button className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs shrink-0">
+                        Practice →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* TAB 2: DEPARTMENT LEADERBOARD */}
+              {examSubTab === 'leaderboard' && (
+                <div className="space-y-3">
+                  {/* Course Picker Chips */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {exams.map((ex) => (
+                      <button
+                        key={ex.id}
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setLeaderboardCourse(ex.name);
+                        }}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                          leaderboardCourse === ex.name
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {ex.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Leaderboard Card List */}
+                  {isLoadingLeaderboard ? (
+                    <div className="py-12 text-center text-xs text-slate-400">
+                      Loading rankings for {leaderboardCourse}...
+                    </div>
+                  ) : leaderboardList.length === 0 ? (
+                    <div className={`p-6 text-center rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200'}`}>
+                      <div className="text-3xl mb-1.5">🏆</div>
+                      <div className="text-xs font-bold">No Records Yet</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs mx-auto">
+                        Be the first student to take the {leaderboardCourse} mock exam and claim rank #1!
+                      </p>
+                      <button
+                        onClick={() => {
+                          const matchedEx = exams.find((e) => e.name === leaderboardCourse) || exams[0];
+                          handleStartExam(matchedEx);
+                        }}
+                        className="mt-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs active:scale-95 transition"
+                      >
+                        Take Exam Now
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex justify-between">
+                        <span>Top Students</span>
+                        <span>{leaderboardList.length} Ranked</span>
+                      </div>
+
+                      {leaderboardList.map((rankItem, idx) => {
+                        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                        const isTop3 = idx < 3;
+                        const durationM = Math.floor((rankItem.time_taken_seconds || 0) / 60);
+                        const durationS = (rankItem.time_taken_seconds || 0) % 60;
+                        const timeStr = durationM > 0 ? `${durationM}m ${durationS}s` : `${durationS}s`;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-2xl border flex items-center justify-between shadow-xs ${
+                              idx === 0
+                                ? isDark ? 'bg-emerald-950/40 border-emerald-700' : 'bg-emerald-50/80 border-emerald-300'
+                                : isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
+                                isTop3
+                                  ? 'text-lg'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono text-[11px]'
+                              }`}>
+                                {medal}
+                              </span>
+                              <div className="min-w-0">
+                                <h5 className="text-xs font-bold truncate">
+                                  {rankItem.student_name || 'Student'}
+                                </h5>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                  <span>Score: {rankItem.score}/{rankItem.total_questions || 4}</span>
+                                  <span>•</span>
+                                  <span>⏱ {timeStr}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <div className={`text-xs font-black ${
+                                Number(rankItem.percentage) >= 75
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-blue-600 dark:text-blue-400'
+                              }`}>
+                                {Math.round(rankItem.percentage || 0)}%
+                              </div>
+                              <div className="text-[9px] text-slate-400">
+                                {rankItem.created_at ? new Date(rankItem.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recent'}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: STUDENT'S PERSONAL HISTORY */}
+              {examSubTab === 'history' && (
+                <div className="space-y-2.5">
+                  {isLoadingHistory ? (
+                    <div className="py-12 text-center text-xs text-slate-400">
+                      Loading your test history...
+                    </div>
+                  ) : examHistoryList.length === 0 ? (
+                    <div className={`p-6 text-center rounded-2xl border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-white border-slate-200'}`}>
+                      <div className="text-3xl mb-1.5">📊</div>
+                      <div className="text-xs font-bold">No History Recorded</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs mx-auto">
+                        Complete your first timed practice exam to track your test analytics over time!
+                      </p>
+                      <button
+                        onClick={() => setExamSubTab('exams')}
+                        className="mt-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs active:scale-95 transition"
+                      >
+                        Choose an Exam Subject
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex justify-between">
+                        <span>Attempt History</span>
+                        <span>{examHistoryList.length} Tests</span>
+                      </div>
+
+                      {examHistoryList.map((hist, idx) => {
+                        const passed = Number(hist.percentage) >= 50;
+                        const durationM = Math.floor((hist.time_taken_seconds || 0) / 60);
+                        const durationS = (hist.time_taken_seconds || 0) % 60;
+                        const timeStr = durationM > 0 ? `${durationM}m ${durationS}s` : `${durationS}s`;
+
+                        return (
+                          <div
+                            key={hist.id || idx}
+                            className={`p-3.5 rounded-2xl border shadow-xs flex items-center justify-between ${
+                              isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div>
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                {hist.course_name}
+                              </div>
+                              <h5 className="text-xs font-bold mt-0.5">
+                                Score: {hist.score} / {hist.total_questions}
+                              </h5>
+                              <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+                                <span>⏱ {timeStr}</span>
+                                <span>•</span>
+                                <span>
+                                  {hist.created_at ? new Date(hist.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Today'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                passed
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                              }`}>
+                                {passed ? `✓ ${Math.round(hist.percentage)}%` : `Review ${Math.round(hist.percentage)}%`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1273,22 +1576,42 @@ export function App() {
                   <div className="text-3xl font-black text-blue-600 dark:text-blue-400 my-2">
                     {calculateScore().percentage}%
                   </div>
-                  <div className="text-xs text-slate-400 mb-4">
+                  <div className="text-xs text-slate-400 mb-2">
                     Score: {calculateScore().correct} / {calculateScore().total} questions correct
                   </div>
-                  <button
-                    onClick={() => {
-                      triggerHaptic('medium');
-                      setExamSubmitted(false);
-                      setCurrentQuestionIdx(0);
-                      setSelectedAnswer(null);
-                      setExamAnswers({});
-                      setExamTimeLeft(600);
-                    }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2.5 rounded-xl shadow-xs transition"
-                  >
-                    Retake Test
-                  </button>
+                  <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-4 flex items-center justify-center gap-1">
+                    <span>✓</span> Attempt saved to Department Leaderboard
+                  </div>
+
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setLeaderboardCourse(activeExam?.name || activeQuiz?.course || 'Data Structures');
+                        setExamSubTab('leaderboard');
+                        setPage('exam');
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+                    >
+                      <span>🏆 View Department Leaderboard</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        setExamSubmitted(false);
+                        setCurrentQuestionIdx(0);
+                        setSelectedAnswer(null);
+                        setExamAnswers({});
+                        setExamTimeLeft(600);
+                      }}
+                      className={`w-full text-xs font-bold py-2 rounded-xl border transition ${
+                        isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Retake Test
+                    </button>
+                  </div>
                 </div>
               ) : (
                 /* Question Card */
@@ -1366,10 +1689,7 @@ export function App() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => {
-                          triggerHaptic('success');
-                          setExamSubmitted(true);
-                        }}
+                        onClick={handleFinishExam}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-1.5 rounded-xl shadow-xs"
                       >
                         Finish & View Score

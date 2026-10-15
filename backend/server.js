@@ -12,6 +12,7 @@ import submissionsRoutes from './routes/submissions.js';
 import usersRoutes from './routes/users.js';
 import bookmarksRoutes from './routes/bookmarks.js';
 import auditLogsRoutes from './routes/auditLogs.js';
+import examsRoutes from './routes/exams.js';
 import { startTelegramBot, broadcastToStudents } from './bot.js';
 
 dotenv.config();
@@ -136,6 +137,7 @@ app.use('/api/submissions', submissionsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/bookmarks', bookmarksRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
+app.use('/api/exams', examsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

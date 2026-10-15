@@ -408,5 +408,72 @@ export async function submitReport({ content_id, user_id, reason, details }) {
   return newReport;
 }
 
+/**
+ * Submit exam or quiz attempt
+ */
+export async function submitExamAttempt(attemptData) {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/exams/submit`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(attemptData),
+      });
+      if (res.ok) return await res.json();
+    } catch (err) {
+      console.warn('API error submitting exam, storing locally:', err.message);
+    }
+  }
+
+  // Local fallback
+  const localAttempts = getLocalItem('exam_attempts', []);
+  const newAttempt = {
+    ...attemptData,
+    id: `local-att-${Date.now()}`,
+    created_at: new Date().toISOString(),
+  };
+  setLocalItem('exam_attempts', [newAttempt, ...localAttempts]);
+  return newAttempt;
+}
+
+/**
+ * Fetch leaderboard for an exit exam course
+ */
+export async function getExamLeaderboard(course) {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/exams/leaderboard/${encodeURIComponent(course)}`);
+      if (res.ok) return await res.json();
+    } catch (err) {
+      console.warn('API error fetching leaderboard:', err.message);
+    }
+  }
+
+  const localAttempts = getLocalItem('exam_attempts', []);
+  return localAttempts
+    .filter((a) => a.course_name.toLowerCase() === course.toLowerCase())
+    .sort((a, b) => b.score - a.score || a.time_taken_seconds - b.time_taken_seconds)
+    .slice(0, 10);
+}
+
+/**
+ * Fetch authenticated student's previous attempts
+ */
+export async function getMyExamHistory() {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/exams/my-history`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (err) {
+      console.warn('API error fetching exam history:', err.message);
+    }
+  }
+
+  return getLocalItem('exam_attempts', []).slice(0, 15);
+}
+
 export const isSupabaseConfigured = false;
 export const supabase = null;
+

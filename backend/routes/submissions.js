@@ -67,7 +67,32 @@ router.post('/', authenticateToken, async (req, res) => {
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const submission = result.rows[0];
+
+    // Alert admins on Telegram
+    try {
+      const adminRes = await query(`SELECT telegram_id FROM users WHERE role IN ('admin', 'super_admin') AND telegram_id IS NOT NULL`);
+      if (adminRes.rows.length > 0) {
+        const { notifyStudent } = await import('../bot.js');
+        const studentName = req.user.full_name || req.user.email || 'Student';
+        for (const aRow of adminRes.rows) {
+          if (aRow.telegram_id) {
+            await notifyStudent(
+              aRow.telegram_id,
+              `📥 **New Study Note Submitted for Review!**\n\n` +
+              `• **Title:** ${title}\n` +
+              `• **Student:** ${studentName}\n` +
+              `• **Category / Subject:** ${category_id || 'General CS'}\n\n` +
+              `Please open the Admin Console to review and approve.`
+            ).catch(() => {});
+          }
+        }
+      }
+    } catch (botErr) {
+      console.warn('Admin submission alert warning:', botErr.message);
+    }
+
+    res.status(201).json(submission);
   } catch (err) {
     res.status(500).json({ error: 'Failed to create submission' });
   }
@@ -151,6 +176,39 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
               userRes.rows[0].telegram_id,
               `🎉 **Great news!** Your study material submission *"${submission.title}"* has been approved and published to CS Hub!`
             );
+
+            // Channel auto-post if TELEGRAM_CHANNEL_ID is set
+            try {
+              const channelId = process.env.TELEGRAM_CHANNEL_ID;
+              if (channelId) {
+                const { getBotInstance } = await import('../bot.js');
+                const b = getBotInstance();
+                if (b) {
+                  await b.sendMessage(
+                    channelId,
+                    `📚 **New Study Material Published to CS Hub!**\n\n` +
+                    `📖 **${submission.title}**\n` +
+                    `👤 Contributed by: ${submission.submitter_name || 'Student'}\n\n` +
+                    `Tap below to open in the CS Hub Mini App:`,
+                    {
+                      parse_mode: 'Markdown',
+                      reply_markup: {
+                        inline_keyboard: [
+                          [
+                            {
+                              text: '🚀 Open Student Web App',
+                              web_app: { url: process.env.FRONTEND_URL || 'https://cshub-student.vercel.app' },
+                            },
+                          ],
+                        ],
+                      },
+                    }
+                  );
+                }
+              }
+            } catch (chanErr) {
+              console.warn('Channel post warning:', chanErr.message);
+            }
           } else if (status === 'rejected') {
             await notifyStudent(
               userRes.rows[0].telegram_id,
