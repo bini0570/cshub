@@ -140,6 +140,29 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
       ]
     );
 
+    // Notify student via Telegram Bot if available
+    try {
+      if (submission.submitter_id) {
+        const userRes = await query('SELECT telegram_id FROM users WHERE id = $1', [submission.submitter_id]);
+        if (userRes.rows.length > 0 && userRes.rows[0].telegram_id) {
+          const { notifyStudent } = await import('../bot.js');
+          if (status === 'approved') {
+            await notifyStudent(
+              userRes.rows[0].telegram_id,
+              `🎉 **Great news!** Your study material submission *"${submission.title}"* has been approved and published to CS Hub!`
+            );
+          } else if (status === 'rejected') {
+            await notifyStudent(
+              userRes.rows[0].telegram_id,
+              `ℹ️ Your submission *"${submission.title}"* was reviewed. Note: ${review_note || 'Please check requirements.'}`
+            );
+          }
+        }
+      }
+    } catch (botErr) {
+      console.warn('Could not notify student via bot:', botErr.message);
+    }
+
     res.json(submission);
   } catch (err) {
     res.status(500).json({ error: 'Failed to review submission' });

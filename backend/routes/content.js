@@ -261,10 +261,48 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await query(`DELETE FROM content WHERE id = $1`, [id]);
-    res.json({ success: true, message: 'Content deleted' });
-  } catch (err) {
     res.status(500).json({ error: 'Failed to delete content' });
   }
 });
 
+/**
+ * Send content document directly to student's Telegram chat
+ * POST /api/content/:id/send-to-telegram
+ */
+router.post('/:id/send-to-telegram', async (req, res) => {
+  const { id } = req.params;
+  const { telegram_id } = req.body;
+  const targetTelegramId = telegram_id || req.user?.telegram_id;
+
+  if (!targetTelegramId) {
+    return res.status(400).json({ error: 'telegram_id is required' });
+  }
+
+  try {
+    const contentRes = await query(`SELECT * FROM content WHERE id = $1`, [id]);
+    if (contentRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+    const item = contentRes.rows[0];
+    const fileTarget = item.download_url || item.external_url || item.file_url;
+
+    const { sendDocumentToUser } = await import('../bot.js');
+    const success = await sendDocumentToUser(
+      targetTelegramId,
+      fileTarget || `https://cshub-student.vercel.app`,
+      `📚 *${item.title}*\n${item.description || 'Study Material from CS Hub'}`
+    );
+
+    if (success) {
+      res.json({ success: true, message: 'Document sent to your Telegram chat' });
+    } else {
+      res.status(500).json({ error: 'Failed to dispatch document to Telegram' });
+    }
+  } catch (err) {
+    console.error('Send to telegram error:', err);
+    res.status(500).json({ error: 'Failed to send document to Telegram' });
+  }
+});
+
 export default router;
+

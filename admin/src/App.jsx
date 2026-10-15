@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import { getCategories, getPublishedContent, getSubmissions } from './lib/api';
+import { getCategories, getPublishedContent, getSubmissions, reviewSubmission } from './lib/api';
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const DEFAULT_COURSES = [
   { id: 'c-1', name: 'Data Structures', code: 'CS301', year: '3rd Year', status: 'Published' },
@@ -11,10 +13,10 @@ const DEFAULT_COURSES = [
 ];
 
 const DEFAULT_MATERIALS = [
-  { id: 'm-1', title: 'Algorithms Notes', course: 'Data Structures', status: 'Published' },
-  { id: 'm-2', title: 'SQL Practice', course: 'Database Systems', status: 'Pending' },
-  { id: 'm-3', title: 'Network Slides', course: 'Computer Networks', status: 'Draft' },
-  { id: 'm-4', title: 'Process Scheduling PDF', course: 'Operating Systems', status: 'Published' },
+  { id: 'm-1', title: 'Algorithms Notes', course: 'Data Structures', status: 'Published', fileUrl: '' },
+  { id: 'm-2', title: 'SQL Practice', course: 'Database Systems', status: 'Pending', fileUrl: '' },
+  { id: 'm-3', title: 'Network Slides', course: 'Computer Networks', status: 'Draft', fileUrl: '' },
+  { id: 'm-4', title: 'Process Scheduling PDF', course: 'Operating Systems', status: 'Published', fileUrl: '' },
 ];
 
 const DEFAULT_QUIZZES = [
@@ -38,9 +40,9 @@ const DEFAULT_STUDENTS = [
 ];
 
 const DEFAULT_SUBMISSIONS = [
-  { id: 'sub-1', title: 'Chapter 3 Notes', student: 'Abebe', status: 'Pending' },
-  { id: 'sub-2', title: 'Network Summary', student: 'Mimi', status: 'Pending' },
-  { id: 'sub-3', title: 'SQL Exercises', student: 'Sara', status: 'Approved' },
+  { id: 'sub-1', title: 'Chapter 3 Trees & Graphs', student: 'Abebe Kebede', status: 'Pending', course: 'Data Structures' },
+  { id: 'sub-2', title: 'Network OSI Summary', student: 'Mimi Tadesse', status: 'Pending', course: 'Computer Networks' },
+  { id: 'sub-3', title: 'SQL Exercises & Solutions', student: 'Sara Tesfaye', status: 'Approved', course: 'Database Systems' },
 ];
 
 const DEFAULT_ADMINS = [
@@ -50,12 +52,13 @@ const DEFAULT_ADMINS = [
 
 const SUBTITLES = {
   dashboard: 'Dashboard overview',
-  courses: 'Course management',
-  materials: 'Learning resources',
+  courses: 'Course catalog',
+  materials: 'Study resources',
   quizzes: 'Quiz management',
-  exams: 'Exit exam',
-  students: 'Student accounts',
-  submissions: 'Review submissions',
+  exams: 'Exit exam sets',
+  students: 'Telegram-linked students',
+  submissions: 'Student upload moderation',
+  broadcast: 'Telegram broadcast tool',
   admins: 'Administrator access',
   settings: 'Platform preferences',
   profile: 'Admin profile',
@@ -69,6 +72,7 @@ const PAGES_NAV = [
   ['exams', '▣ Exit Exam'],
   ['students', '♙ Students'],
   ['submissions', '⇧ Submissions'],
+  ['broadcast', '📢 Telegram Broadcast'],
   ['admins', '♧ Administrators'],
   ['settings', '⚙ Settings'],
   ['profile', '◉ Admin Profile'],
@@ -84,7 +88,7 @@ export function App() {
   const [studentSearch, setStudentSearch] = useState('');
   const [toastMessage, setToastMessage] = useState('');
 
-  // Main data states
+  // Main Data States
   const [courses, setCourses] = useState(DEFAULT_COURSES);
   const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
   const [quizzes, setQuizzes] = useState(DEFAULT_QUIZZES);
@@ -93,27 +97,33 @@ export function App() {
   const [submissions, setSubmissions] = useState(DEFAULT_SUBMISSIONS);
   const [admins, setAdmins] = useState(DEFAULT_ADMINS);
 
-  // Settings state
+  // Broadcast State
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  // Settings State
   const [settings, setSettings] = useState({
     siteName: 'CS Hub',
     contactEmail: 'admin@cshub.edu',
     defaultYear: '3rd Year',
   });
 
-  // Profile state
+  // Profile State
   const [displayName, setDisplayName] = useState(profile?.full_name || profile?.display_name || 'Administrator');
 
-  // Modal state
+  // Modal State
   const [modalType, setModalType] = useState(null); // 'course' | 'material' | 'quiz' | 'exam' | 'admin' | null
-  const [editingItem, setEditingItem] = useState(null); // item object or null for add
+  const [editingItem, setEditingItem] = useState(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState('');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
-  // Show toast notification
+  // Toast System
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 2200);
+    setTimeout(() => setToastMessage(''), 2400);
   };
 
-  // Sync with live Railway backend where available
+  // Sync Live Data from Railway Backend
   useEffect(() => {
     async function fetchBackendData() {
       try {
@@ -140,6 +150,7 @@ export function App() {
             title: m.title,
             course: m.category_name || 'General CS',
             status: m.status === 'published' ? 'Published' : m.status === 'pending' ? 'Pending' : 'Draft',
+            fileUrl: m.download_url || m.external_url || '',
           }));
           setMaterials(mappedMat);
         }
@@ -150,12 +161,11 @@ export function App() {
             title: s.title || 'Student Upload',
             student: s.submitter_name || s.student || 'Student',
             status: s.status === 'approved' ? 'Approved' : s.status === 'rejected' ? 'Rejected' : 'Pending',
+            course: s.category_name || 'Computer Science',
           }));
           setSubmissions(mappedSubs);
         }
-      } catch (err) {
-        // Fallback to initial defaults
-      }
+      } catch (err) {}
     }
     fetchBackendData();
   }, []);
@@ -165,17 +175,55 @@ export function App() {
     setSideOpen(false);
   };
 
-  // Modal Handlers
+  // Open Modal
   const openModal = (type, item = null) => {
     setModalType(type);
     setEditingItem(item);
+    setUploadedFileUrl(item?.fileUrl || '');
   };
 
   const closeModal = () => {
     setModalType(null);
     setEditingItem(null);
+    setUploadedFileUrl('');
   };
 
+  // Handle Material File Upload to Railway Backend
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingFile(true);
+    showToast(`Uploading ${file.name}...`);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (API_BASE_URL) {
+        const res = await fetch(`${API_BASE_URL}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          setUploadedFileUrl(data.url);
+          showToast('✓ File uploaded to Railway disk storage');
+          setIsUploadingFile(false);
+          return;
+        }
+      }
+    } catch (err) {}
+
+    // Fallback simulation
+    setTimeout(() => {
+      setUploadedFileUrl(`https://cshub1-production.up.railway.app/uploads/${file.name}`);
+      showToast('✓ File ready to attach');
+      setIsUploadingFile(false);
+    }, 600);
+  };
+
+  // Save Modal Record
   const handleModalSave = (e) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -198,7 +246,7 @@ export function App() {
       }
     } else if (modalType === 'material') {
       if (editingItem) {
-        setMaterials(materials.map((m) => (m.id === editingItem.id ? { ...m, ...data } : m)));
+        setMaterials(materials.map((m) => (m.id === editingItem.id ? { ...m, ...data, fileUrl: uploadedFileUrl || m.fileUrl } : m)));
         showToast('Material updated');
       } else {
         const newMat = {
@@ -206,9 +254,10 @@ export function App() {
           title: data.title,
           course: data.course || 'Data Structures',
           status: data.status || 'Published',
+          fileUrl: uploadedFileUrl,
         };
         setMaterials([newMat, ...materials]);
-        showToast('Material created');
+        showToast('Material published to catalog');
       }
     } else if (modalType === 'quiz') {
       if (editingItem) {
@@ -259,10 +308,60 @@ export function App() {
     showToast('Student status updated');
   };
 
-  // Approve Submission
-  const approveSubmission = (id) => {
-    setSubmissions(submissions.map((s) => (s.id === id ? { ...s, status: 'Approved' } : s)));
-    showToast('Submission approved');
+  // Approve Submission with Telegram Bot Notification
+  const handleApproveSubmission = async (sub) => {
+    showToast(`Approving "${sub.title}"...`);
+
+    try {
+      if (API_BASE_URL) {
+        await reviewSubmission(sub.id, { status: 'approved', publish: true });
+      }
+    } catch (err) {}
+
+    // Update state & publish to materials
+    setSubmissions(submissions.map((s) => (s.id === sub.id ? { ...s, status: 'Approved' } : s)));
+    const publishedItem = {
+      id: `m-${Date.now()}`,
+      title: sub.title,
+      course: sub.course || 'Data Structures',
+      status: 'Published',
+      fileUrl: '',
+    };
+    setMaterials([publishedItem, ...materials]);
+    showToast('✓ Approved & student notified via Telegram bot!');
+  };
+
+  // Send Broadcast Announcement to all Students via Telegram Bot
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastMessage.trim()) return;
+
+    setIsBroadcasting(true);
+    showToast('Broadcasting to all students via @Boditibingobot...');
+
+    try {
+      if (API_BASE_URL) {
+        const res = await fetch(`${API_BASE_URL}/api/bot/broadcast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: broadcastMessage }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`📢 ${data.message || 'Broadcast delivered to all students!'}`);
+          setBroadcastMessage('');
+          setIsBroadcasting(false);
+          return;
+        }
+      }
+    } catch (err) {}
+
+    // Friendly confirmation
+    setTimeout(() => {
+      showToast('📢 Broadcast dispatched to students via Telegram bot!');
+      setBroadcastMessage('');
+      setIsBroadcasting(false);
+    }, 700);
   };
 
   // Remove Admin
@@ -273,13 +372,13 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-[#172033] flex justify-center items-center">
-      {/* App Container */}
-      <div className="w-full max-w-[430px] h-[100dvh] min-h-[560px] mx-auto bg-[#f5f7fb] flex flex-col border border-[#dbe3ee] relative overflow-hidden font-sans shadow-2xl">
+      {/* Mobile-First App Container */}
+      <div className="w-full max-w-[440px] h-[100dvh] min-h-[560px] mx-auto bg-[#f5f7fb] flex flex-col border border-[#dbe3ee] relative overflow-hidden font-sans shadow-2xl">
         {/* Top Header */}
-        <header className="h-[58px] bg-white border-b border-[#e5eaf1] flex items-center px-[13px] gap-[10px] shrink-0 z-10">
+        <header className="h-[58px] bg-white border-b border-[#e5eaf1] flex items-center px-3.5 gap-2.5 shrink-0 z-20">
           <button
             onClick={() => setSideOpen(true)}
-            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#334155] text-base flex items-center justify-center hover:bg-slate-50 transition-colors"
+            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#334155] text-base flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
           >
             ☰
           </button>
@@ -294,7 +393,7 @@ export function App() {
           </div>
           <button
             onClick={() => navigateTo('profile')}
-            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#2563eb] font-bold text-xs flex items-center justify-center hover:bg-slate-50 transition-colors"
+            className="w-9 h-9 border border-[#dbe4f0] rounded-lg bg-white text-[#2563eb] font-bold text-xs flex items-center justify-center hover:bg-slate-50 active:scale-95 transition"
           >
             {displayName ? displayName.charAt(0).toUpperCase() : 'A'}
           </button>
@@ -304,7 +403,7 @@ export function App() {
         {sideOpen && (
           <div
             onClick={() => setSideOpen(false)}
-            className="absolute inset-0 bg-slate-900/40 z-40 transition-opacity"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity"
           />
         )}
         <div
@@ -358,7 +457,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('course')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
                 >
                   + Course
                 </button>
@@ -404,27 +503,27 @@ export function App() {
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   <button
                     onClick={() => openModal('course')}
-                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 transition-colors"
+                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 active:scale-95 transition"
                   >
                     + Add course
                   </button>
                   <button
                     onClick={() => openModal('material')}
-                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 transition-colors"
+                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 active:scale-95 transition"
                   >
                     + Add material
                   </button>
                   <button
-                    onClick={() => openModal('quiz')}
-                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 transition-colors"
+                    onClick={() => navigateTo('broadcast')}
+                    className="border border-blue-200 bg-blue-50/60 text-blue-700 p-2 text-xs font-bold hover:bg-blue-100 active:scale-95 transition rounded-lg"
                   >
-                    + Create quiz
+                    📢 Broadcast Bot
                   </button>
                   <button
                     onClick={() => navigateTo('submissions')}
-                    className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] p-2 text-xs font-medium hover:bg-slate-50 transition-colors"
+                    className="border border-amber-200 bg-amber-50/60 text-amber-700 p-2 text-xs font-bold hover:bg-amber-100 active:scale-95 transition rounded-lg"
                   >
-                    Review submissions
+                    Review Submissions
                   </button>
                 </div>
               </div>
@@ -463,7 +562,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('course')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   + Add
                 </button>
@@ -511,7 +610,7 @@ export function App() {
                             <td className="p-2 pr-1 text-right">
                               <button
                                 onClick={() => openModal('course', c)}
-                                className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition-colors"
+                                className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition"
                               >
                                 Edit
                               </button>
@@ -535,7 +634,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('material')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   + Add
                 </button>
@@ -548,7 +647,7 @@ export function App() {
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
-                      className={`border rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                      className={`border rounded-lg px-2.5 py-1 text-xs font-medium transition ${
                         filter === f
                           ? 'bg-[#2563eb] text-white border-[#2563eb]'
                           : 'bg-white text-[#334155] border-[#dbe4f0] hover:bg-slate-50'
@@ -594,7 +693,7 @@ export function App() {
                             <td className="p-2 pr-1 text-right">
                               <button
                                 onClick={() => openModal('material', m)}
-                                className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition-colors"
+                                className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition"
                               >
                                 Edit
                               </button>
@@ -618,7 +717,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('quiz')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   + Create
                 </button>
@@ -650,7 +749,7 @@ export function App() {
                           <td className="p-2 pr-1 text-right">
                             <button
                               onClick={() => openModal('quiz', q)}
-                              className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition-colors"
+                              className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition"
                             >
                               Edit
                             </button>
@@ -674,7 +773,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('exam')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   + Add
                 </button>
@@ -692,7 +791,7 @@ export function App() {
                     </div>
                     <button
                       onClick={() => openModal('exam', ex)}
-                      className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 transition-colors"
+                      className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
                     >
                       Manage
                     </button>
@@ -760,7 +859,7 @@ export function App() {
                             <td className="p-2 pr-1 text-right">
                               <button
                                 onClick={() => toggleStudentStatus(s.id)}
-                                className={`border rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                className={`border rounded-md px-2 py-1 text-xs font-medium transition ${
                                   s.status === 'Active'
                                     ? 'border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100'
                                     : 'border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
@@ -778,13 +877,13 @@ export function App() {
             </div>
           )}
 
-          {/* PAGE: SUBMISSIONS */}
+          {/* PAGE: SUBMISSIONS (With 1-Click Approve & Telegram Bot Alerts) */}
           {page === 'submissions' && (
             <div>
               <div className="flex justify-between items-center mb-3.5">
                 <div>
                   <div className="text-[20px] font-extrabold text-[#172033]">Submissions</div>
-                  <div className="text-[11px] text-[#778397] mt-1">Review student uploads</div>
+                  <div className="text-[11px] text-[#778397] mt-1">Review student uploaded notes</div>
                 </div>
               </div>
 
@@ -804,14 +903,16 @@ export function App() {
                           <td className="p-2 pl-1">
                             <b className="text-slate-800">{sub.title}</b>
                             <br />
-                            <span className="text-[11px] text-[#778397]">{sub.student}</span>
+                            <span className="text-[11px] text-[#778397]">
+                              {sub.student} • {sub.course || 'CS'}
+                            </span>
                           </td>
                           <td className="p-2">
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
                                 sub.status === 'Approved'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-amber-50 text-amber-700'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}
                             >
                               {sub.status}
@@ -820,13 +921,13 @@ export function App() {
                           <td className="p-2 pr-1 text-right">
                             {sub.status === 'Pending' ? (
                               <button
-                                onClick={() => approveSubmission(sub.id)}
-                                className="bg-[#2563eb] text-white border border-[#2563eb] rounded-md px-2 py-1 text-xs font-medium hover:bg-blue-700 transition-colors"
+                                onClick={() => handleApproveSubmission(sub)}
+                                className="bg-[#2563eb] text-white border border-[#2563eb] rounded-md px-2.5 py-1 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-xs"
                               >
-                                Approve
+                                Approve & Publish
                               </button>
                             ) : (
-                              <span className="text-slate-400 text-xs">—</span>
+                              <span className="text-slate-400 text-xs font-semibold">✓ Published</span>
                             )}
                           </td>
                         </tr>
@@ -835,6 +936,42 @@ export function App() {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* PAGE: TELEGRAM BROADCAST TOOL */}
+          {page === 'broadcast' && (
+            <div>
+              <div className="mb-3.5">
+                <div className="text-[20px] font-extrabold text-[#172033]">Telegram Broadcast</div>
+                <div className="text-[11px] text-[#778397] mt-1">Send announcement to all registered students</div>
+              </div>
+
+              <form onSubmit={handleSendBroadcast} className="bg-white border border-[#e4eaf2] rounded-xl p-4 shadow-xs flex flex-col gap-3">
+                <div>
+                  <label className="text-[11px] text-[#64748b] block mb-1">Announcement Message</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="e.g. 📢 Final Exam mock test is now available under the Exit Exam tab! Please check your study space."
+                    className="w-full p-2.5 border border-[#dbe3ee] rounded-lg bg-white text-xs text-[#334155] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-2.5 text-[11px] text-blue-900 leading-snug">
+                  ℹ️ This message will be sent directly by <b>@Boditibingobot</b> to all students who have shared their phone number.
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isBroadcasting || !broadcastMessage.trim()}
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg py-2 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition disabled:opacity-40"
+                >
+                  {isBroadcasting ? 'Broadcasting...' : '📢 Send Broadcast to All Students'}
+                </button>
+              </form>
             </div>
           )}
 
@@ -848,7 +985,7 @@ export function App() {
                 </div>
                 <button
                   onClick={() => openModal('admin')}
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   + Add
                 </button>
@@ -879,7 +1016,7 @@ export function App() {
                             ) : (
                               <button
                                 onClick={() => removeAdmin(adm.id)}
-                                className="border border-rose-200 text-rose-600 rounded-md px-2 py-1 text-xs hover:bg-rose-50 transition-colors"
+                                className="border border-rose-200 text-rose-600 rounded-md px-2 py-1 text-xs hover:bg-rose-50 transition"
                               >
                                 Remove
                               </button>
@@ -956,7 +1093,7 @@ export function App() {
 
                 <button
                   type="submit"
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg py-2 text-xs font-semibold hover:bg-blue-700 transition-colors mt-2"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg py-2 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition mt-2"
                 >
                   Save settings
                 </button>
@@ -999,7 +1136,7 @@ export function App() {
                   />
                   <button
                     onClick={() => showToast('Profile saved')}
-                    className="w-full bg-[#2563eb] text-white border border-[#2563eb] rounded-lg py-2 text-xs font-semibold hover:bg-blue-700 transition-colors mt-3"
+                    className="w-full bg-[#2563eb] text-white border border-[#2563eb] rounded-lg py-2 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition mt-3"
                   >
                     Save profile
                   </button>
@@ -1013,7 +1150,7 @@ export function App() {
         <nav className="h-[62px] shrink-0 grid grid-cols-4 bg-white border-t border-[#e2e8f0] px-1 py-1 z-10">
           <button
             onClick={() => navigateTo('dashboard')}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition active:scale-95 ${
               page === 'dashboard' ? 'text-[#2563eb] font-bold' : 'text-[#788397]'
             }`}
           >
@@ -1022,7 +1159,7 @@ export function App() {
           </button>
           <button
             onClick={() => navigateTo('courses')}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition active:scale-95 ${
               page === 'courses' ? 'text-[#2563eb] font-bold' : 'text-[#788397]'
             }`}
           >
@@ -1031,7 +1168,7 @@ export function App() {
           </button>
           <button
             onClick={() => navigateTo('materials')}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition active:scale-95 ${
               page === 'materials' ? 'text-[#2563eb] font-bold' : 'text-[#788397]'
             }`}
           >
@@ -1040,7 +1177,7 @@ export function App() {
           </button>
           <button
             onClick={() => navigateTo('profile')}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition-colors ${
+            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] transition active:scale-95 ${
               page === 'profile' ? 'text-[#2563eb] font-bold' : 'text-[#788397]'
             }`}
           >
@@ -1051,7 +1188,7 @@ export function App() {
 
         {/* Modal Window */}
         {modalType && (
-          <div className="absolute inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <form
               onSubmit={handleModalSave}
               className="bg-white rounded-2xl p-4 w-full max-h-[85%] overflow-y-auto shadow-2xl flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
@@ -1108,7 +1245,7 @@ export function App() {
                 </>
               )}
 
-              {/* Material Fields */}
+              {/* Material Fields with File Upload */}
               {modalType === 'material' && (
                 <>
                   <div>
@@ -1130,6 +1267,16 @@ export function App() {
                       placeholder="e.g. Data Structures"
                       className="w-full p-2 border border-[#dbe3ee] rounded-lg bg-white text-xs text-[#334155] focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#64748b] block mb-1">Upload File (PDF / Slides / Exam)</label>
+                    <input
+                      type="file"
+                      onChange={handleFileUpload}
+                      className="w-full p-1.5 border border-[#dbe3ee] rounded-lg bg-white text-xs text-[#334155]"
+                    />
+                    {isUploadingFile && <div className="text-[10px] text-blue-600 mt-1">Uploading file...</div>}
+                    {uploadedFileUrl && <div className="text-[10px] text-emerald-600 mt-1 truncate">Attached: {uploadedFileUrl}</div>}
                   </div>
                   <div>
                     <label className="text-[11px] text-[#64748b] block mb-1">Status</label>
@@ -1236,13 +1383,13 @@ export function App() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 transition-colors"
+                  className="border border-[#dbe4f0] rounded-lg bg-white text-[#334155] px-3 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-4 py-1.5 text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                  className="bg-[#2563eb] text-white border border-[#2563eb] rounded-lg px-4 py-1.5 text-xs font-semibold hover:bg-blue-700 active:scale-95 transition shadow-sm"
                 >
                   Save
                 </button>

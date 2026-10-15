@@ -260,8 +260,85 @@ export function startTelegramBot() {
   });
 }
 
+/**
+ * Send a document directly to a student's Telegram chat
+ */
+export async function sendDocumentToUser(telegramId, fileUrlOrPath, caption = '') {
+  if (!bot) {
+    console.warn('Telegram bot is not initialized');
+    return false;
+  }
+  try {
+    await bot.sendDocument(telegramId, fileUrlOrPath, {
+      caption: caption || '📚 Study material from CS Hub',
+      parse_mode: 'Markdown',
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to send document to telegram user:', err.message);
+    // If sending file as local path fails or is external url, send as text message with direct link
+    try {
+      await bot.sendMessage(
+        telegramId,
+        `📚 **CS Hub Study Material**\n\n${caption}\n\n[Download File](${fileUrlOrPath})`,
+        { parse_mode: 'Markdown' }
+      );
+      return true;
+    } catch (msgErr) {
+      console.error('Failed to send link message fallback:', msgErr.message);
+      return false;
+    }
+  }
+}
+
+/**
+ * Send a direct notification message to a student
+ */
+export async function notifyStudent(telegramId, message) {
+  if (!bot) return false;
+  try {
+    await bot.sendMessage(telegramId, message, { parse_mode: 'Markdown' });
+    return true;
+  } catch (err) {
+    console.error('Failed to notify student:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Broadcast an announcement to all registered students
+ */
+export async function broadcastToStudents(message) {
+  if (!bot) return { sent: 0, failed: 0 };
+  try {
+    const res = await query('SELECT telegram_id FROM users WHERE telegram_id IS NOT NULL');
+    let sent = 0;
+    let failed = 0;
+
+    for (const row of res.rows) {
+      if (row.telegram_id) {
+        try {
+          await bot.sendMessage(row.telegram_id, message, { parse_mode: 'Markdown' });
+          sent++;
+        } catch (e) {
+          failed++;
+        }
+      }
+    }
+    return { sent, failed };
+  } catch (err) {
+    console.error('Broadcast error:', err);
+    return { sent: 0, failed: 0, error: err.message };
+  }
+}
+
+export function getBotInstance() {
+  return bot;
+}
+
 // Standalone runner if executed directly via `node bot.js`
 if (process.argv[1]?.endsWith('bot.js')) {
   console.log('Running Telegram Bot in standalone mode...');
   startTelegramBot();
 }
+
