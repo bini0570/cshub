@@ -11,7 +11,7 @@ const router = Router();
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, telegram_id, telegram_username, student_id, full_name,
+      `SELECT id, telegram_id, telegram_username, student_id, full_name, phone,
               department, academic_year, role, email, avatar_url, created_at
        FROM users
        ORDER BY created_at DESC`

@@ -5,26 +5,15 @@ import { getCategories, getPublishedContent, createSubmission } from './lib/api'
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const DEFAULT_COURSES = [
-  { id: 'c-1', name: 'Data Structures', code: 'CS301', year: '3rd Year', sem: 'Semester I', count: 12 },
-  { id: 'c-2', name: 'Database Systems', code: 'CS302', year: '3rd Year', sem: 'Semester I', count: 9 },
-  { id: 'c-3', name: 'Computer Networks', code: 'CS401', year: '4th Year', sem: 'Semester I', count: 8 },
-  { id: 'c-4', name: 'Operating Systems', code: 'CS303', year: '3rd Year', sem: 'Semester II', count: 10 },
-  { id: 'c-5', name: 'Artificial Intelligence', code: 'CS405', year: '4th Year', sem: 'Semester II', count: 6 },
-  { id: 'c-6', name: 'Object Oriented Programming', code: 'CS201', year: '2nd Year', sem: 'Semester I', count: 11 },
+  { id: 'c-1', name: 'Data Structures', code: 'CS301', year: '3rd Year', sem: 'Semester I', count: 0 },
+  { id: 'c-2', name: 'Database Systems', code: 'CS302', year: '3rd Year', sem: 'Semester I', count: 0 },
+  { id: 'c-3', name: 'Computer Networks', code: 'CS401', year: '4th Year', sem: 'Semester I', count: 0 },
+  { id: 'c-4', name: 'Operating Systems', code: 'CS303', year: '3rd Year', sem: 'Semester II', count: 0 },
+  { id: 'c-5', name: 'Artificial Intelligence', code: 'CS405', year: '4th Year', sem: 'Semester II', count: 0 },
+  { id: 'c-6', name: 'Object Oriented Programming', code: 'CS201', year: '2nd Year', sem: 'Semester I', count: 0 },
 ];
 
-const DEFAULT_MATERIALS = [
-  { id: 'm-1', title: 'Introduction to Algorithms', course: 'Data Structures', category: 'notes', type: 'PDF', size: '2.4 MB', date: 'Oct 2026' },
-  { id: 'm-2', title: 'Binary Trees & Graph Traversals', course: 'Data Structures', category: 'notes', type: 'PDF', size: '3.1 MB', date: 'Oct 2026' },
-  { id: 'm-3', title: 'Data Structures Lab 01 - C++', course: 'Data Structures', category: 'labs', type: 'Code', size: '450 KB', date: 'Sep 2026' },
-  { id: 'm-4', title: 'Data Structures 2025 Midterm Exam', course: 'Data Structures', category: 'exams', type: 'Exam', size: '1.5 MB', date: 'Jan 2025' },
-  { id: 'm-5', title: 'SQL Practice Notes', course: 'Database Systems', category: 'notes', type: 'PDF', size: '1.2 MB', date: 'Oct 2026' },
-  { id: 'm-6', title: 'ER Modeling & Relational Algebra', course: 'Database Systems', category: 'notes', type: 'Slides', size: '4.2 MB', date: 'Sep 2026' },
-  { id: 'm-7', title: 'Database Systems Exit Exam Questions', course: 'Database Systems', category: 'exams', type: 'Exam', size: '2.1 MB', date: 'Jul 2025' },
-  { id: 'm-8', title: 'Network Layer Slides', course: 'Computer Networks', category: 'notes', type: 'Slides', size: '3.1 MB', date: 'Oct 2026' },
-  { id: 'm-9', title: 'Operating Systems Summary', course: 'Operating Systems', category: 'notes', type: 'PDF', size: '1.8 MB', date: 'Oct 2026' },
-  { id: 'm-10', title: 'AI Fundamentals & State Space Search', course: 'Artificial Intelligence', category: 'notes', type: 'PDF', size: '2.0 MB', date: 'Oct 2026' },
-];
+const DEFAULT_MATERIALS = [];
 
 const DEFAULT_QUIZZES = [
   { id: 'q-1', title: 'Data Structures Quiz 1', course: 'Data Structures', q: 15, status: 'Available', time: '20 min' },
@@ -182,7 +171,7 @@ export function App() {
   const [isDark, setIsDark] = useState(false);
 
   // Bookmarks State
-  const [bookmarks, setBookmarks] = useState(['Introduction to Algorithms', 'SQL Practice Notes']);
+  const [bookmarks, setBookmarks] = useState([]);
 
   // Peer Upload Modal State
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -879,47 +868,65 @@ export function App() {
                 </div>
 
                 <div className="space-y-2">
-                  {materials.slice(0, 5).map((m) => (
-                    <div
-                      key={m.id}
-                      className={`p-3 rounded-2xl border flex items-center justify-between shadow-xs transition ${
-                        isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1 pr-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 uppercase">
-                            {m.type}
-                          </span>
-                          <h5 className="text-xs font-bold truncate">{m.title}</h5>
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                          <span>{m.course}</span>
-                          <span>•</span>
-                          <span>{m.size}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => toggleBookmark(m.title)}
-                          className={`w-7 h-7 rounded-lg border flex items-center justify-center text-xs transition ${
-                            bookmarks.includes(m.title)
-                              ? 'text-amber-500 border-amber-300 bg-amber-50 dark:bg-amber-950/40'
-                              : 'text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-600'
-                          }`}
-                        >
-                          {bookmarks.includes(m.title) ? '★' : '☆'}
-                        </button>
-                        <button
-                          onClick={() => sendToTelegramChat(m)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1"
-                        >
-                          <span>✈ Send</span>
-                        </button>
-                      </div>
+                  {materials.length === 0 ? (
+                    <div className={`p-5 rounded-2xl border text-center ${
+                      isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
+                    }`}>
+                      <div className="text-2xl mb-1">📚</div>
+                      <div className="text-xs font-bold">No Study Materials Yet</div>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-[240px] mx-auto">
+                        Course notes and past exams will appear here once uploaded by admins or peers.
+                      </p>
+                      <button
+                        onClick={() => setUploadModalOpen(true)}
+                        className="mt-3 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs active:scale-95 transition"
+                      >
+                        📤 Submit Study Notes
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    materials.slice(0, 5).map((m) => (
+                      <div
+                        key={m.id}
+                        className={`p-3 rounded-2xl border flex items-center justify-between shadow-xs transition ${
+                          isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 uppercase">
+                              {m.type}
+                            </span>
+                            <h5 className="text-xs font-bold truncate">{m.title}</h5>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                            <span>{m.course}</span>
+                            <span>•</span>
+                            <span>{m.size}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => toggleBookmark(m.title)}
+                            className={`w-7 h-7 rounded-lg border flex items-center justify-center text-xs transition ${
+                              bookmarks.includes(m.title)
+                                ? 'text-amber-500 border-amber-300 bg-amber-50 dark:bg-amber-950/40'
+                                : 'text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-600'
+                            }`}
+                          >
+                            {bookmarks.includes(m.title) ? '★' : '☆'}
+                          </button>
+                          <button
+                            onClick={() => sendToTelegramChat(m)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1"
+                          >
+                            <span>✈ Send</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

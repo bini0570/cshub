@@ -1,27 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import { getCategories, getPublishedContent, getSubmissions, reviewSubmission } from './lib/api';
+import { getCategories, getPublishedContent, getSubmissions, reviewSubmission, getUsers } from './lib/api';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const DEFAULT_COURSES = [
   { id: 'c-1', name: 'Data Structures', code: 'CS301', year: '3rd Year', status: 'Published' },
   { id: 'c-2', name: 'Database Systems', code: 'CS302', year: '3rd Year', status: 'Published' },
-  { id: 'c-3', name: 'Computer Networks', code: 'CS401', year: '4th Year', status: 'Draft' },
+  { id: 'c-3', name: 'Computer Networks', code: 'CS401', year: '4th Year', status: 'Published' },
   { id: 'c-4', name: 'Operating Systems', code: 'CS303', year: '3rd Year', status: 'Published' },
-  { id: 'c-5', name: 'Artificial Intelligence', code: 'CS405', year: '4th Year', status: 'Draft' },
+  { id: 'c-5', name: 'Artificial Intelligence', code: 'CS405', year: '4th Year', status: 'Published' },
 ];
 
-const DEFAULT_MATERIALS = [
-  { id: 'm-1', title: 'Algorithms Notes', course: 'Data Structures', status: 'Published', fileUrl: '' },
-  { id: 'm-2', title: 'SQL Practice', course: 'Database Systems', status: 'Pending', fileUrl: '' },
-  { id: 'm-3', title: 'Network Slides', course: 'Computer Networks', status: 'Draft', fileUrl: '' },
-  { id: 'm-4', title: 'Process Scheduling PDF', course: 'Operating Systems', status: 'Published', fileUrl: '' },
-];
+const DEFAULT_MATERIALS = [];
 
 const DEFAULT_QUIZZES = [
   { id: 'q-1', title: 'Data Structures Quiz', questions: 15, status: 'Published' },
-  { id: 'q-2', title: 'Database Basics', questions: 20, status: 'Draft' },
+  { id: 'q-2', title: 'Database Basics', questions: 20, status: 'Published' },
   { id: 'q-3', title: 'Computer Networks Midterm Prep', questions: 25, status: 'Published' },
 ];
 
@@ -32,22 +27,12 @@ const DEFAULT_EXAMS = [
   { id: 'e-4', name: 'Operating Systems', questions: 110 },
 ];
 
-const DEFAULT_STUDENTS = [
-  { id: 's-1', name: 'Abebe Kebede', handle: '@abebe_cs', status: 'Active', phone: '+251911223344' },
-  { id: 's-2', name: 'Mimi Tadesse', handle: '@mimi_t', status: 'Active', phone: '+251922334455' },
-  { id: 's-3', name: 'Dawit Bekele', handle: '@dawitb', status: 'Restricted', phone: '+251933445566' },
-  { id: 's-4', name: 'Sara Tesfaye', handle: '@sarat', status: 'Active', phone: '+251944556677' },
-];
+const DEFAULT_STUDENTS = [];
 
-const DEFAULT_SUBMISSIONS = [
-  { id: 'sub-1', title: 'Chapter 3 Trees & Graphs', student: 'Abebe Kebede', status: 'Pending', course: 'Data Structures' },
-  { id: 'sub-2', title: 'Network OSI Summary', student: 'Mimi Tadesse', status: 'Pending', course: 'Computer Networks' },
-  { id: 'sub-3', title: 'SQL Exercises & Solutions', student: 'Sara Tesfaye', status: 'Approved', course: 'Database Systems' },
-];
+const DEFAULT_SUBMISSIONS = [];
 
 const DEFAULT_ADMINS = [
-  { id: 'a-1', name: 'Administrator', email: 'admin@cshub.edu', role: 'Owner' },
-  { id: 'a-2', name: 'Content Manager', email: 'content@cshub.edu', role: 'Editor' },
+  { id: 'admin-primary', name: 'CS Hub Administrator', email: 'admin@cshub.edu', role: 'Owner' },
 ];
 
 const SUBTITLES = {
@@ -177,10 +162,11 @@ export function App() {
   useEffect(() => {
     async function fetchBackendData() {
       try {
-        const [cats, cont, subs] = await Promise.all([
+        const [cats, cont, subs, usersList] = await Promise.all([
           getCategories(),
           getPublishedContent(),
           getSubmissions({ isAdmin: true }),
+          getUsers(),
         ]);
 
         if (cats && cats.length > 0) {
@@ -203,6 +189,8 @@ export function App() {
             fileUrl: m.download_url || m.external_url || '',
           }));
           setMaterials(mappedMat);
+        } else {
+          setMaterials([]);
         }
 
         if (subs && subs.length > 0) {
@@ -214,6 +202,23 @@ export function App() {
             course: s.category_name || 'Computer Science',
           }));
           setSubmissions(mappedSubs);
+        } else {
+          setSubmissions([]);
+        }
+
+        if (usersList && usersList.length > 0) {
+          const mappedStudents = usersList
+            .filter((u) => u.role === 'student' || (!u.role && u.telegram_id))
+            .map((s, i) => ({
+              id: s.id || `s-${i}`,
+              name: s.full_name || 'Telegram Student',
+              handle: s.telegram_username ? `@${s.telegram_username}` : 'Direct Telegram User',
+              status: 'Active',
+              phone: s.phone || 'Verified via Bot',
+            }));
+          setStudents(mappedStudents);
+        } else {
+          setStudents([]);
         }
       } catch (err) {}
     }
@@ -747,20 +752,32 @@ export function App() {
               <div className="bg-white border border-[#e4eaf2] rounded-xl p-3.5 mt-2.5 shadow-xs">
                 <b className="text-[13px] text-slate-800">Recent activity</b>
                 <div className="mt-3 flex flex-col divide-y divide-[#edf0f5]">
-                  <div className="pb-2.5 text-xs">
-                    <b>New student joined</b>
-                    <br />
-                    <span className="text-[11px] text-[#778397]">Abebe Kebede via Telegram Bot</span>
-                  </div>
-                  <div className="py-2.5 text-xs">
-                    <b>Material awaits review</b>
-                    <br />
-                    <span className="text-[11px] text-[#778397]">Network Summary • Mimi Tadesse</span>
-                  </div>
+                  {students.length > 0 ? (
+                    <div className="pb-2.5 text-xs">
+                      <b>Recent student registered</b>
+                      <br />
+                      <span className="text-[11px] text-[#778397]">{students[0].name} ({students[0].handle}) via Telegram Bot</span>
+                    </div>
+                  ) : (
+                    <div className="pb-2.5 text-xs text-[#778397]">
+                      No recent student registrations yet.
+                    </div>
+                  )}
+                  {submissions.length > 0 ? (
+                    <div className="py-2.5 text-xs">
+                      <b>Submission {submissions[0].status}</b>
+                      <br />
+                      <span className="text-[11px] text-[#778397]">{submissions[0].title} • {submissions[0].student}</span>
+                    </div>
+                  ) : (
+                    <div className="py-2.5 text-xs text-[#778397]">
+                      No pending peer uploads to review.
+                    </div>
+                  )}
                   <div className="pt-2.5 text-xs">
-                    <b>Quiz published</b>
+                    <b>System status</b>
                     <br />
-                    <span className="text-[11px] text-[#778397]">Data Structures Quiz (15 questions)</span>
+                    <span className="text-[11px] text-emerald-600 font-medium">● Telegram bot @Boditibingobot connected</span>
                   </div>
                 </div>
               </div>
@@ -915,6 +932,15 @@ export function App() {
                             </td>
                           </tr>
                         ))}
+                      {materials.filter((m) => filter === 'All' || m.status === filter).length === 0 && (
+                        <tr>
+                          <td colSpan="3" className="p-8 text-center text-slate-400">
+                            <div className="text-2xl mb-1">📁</div>
+                            <div className="text-xs font-semibold text-slate-600">No materials uploaded yet</div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Click "+ Add" to create and publish study notes, slides, or lab files.</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1085,6 +1111,19 @@ export function App() {
                             </td>
                           </tr>
                         ))}
+                      {students.filter(
+                        (s) =>
+                          s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                          s.handle.toLowerCase().includes(studentSearch.toLowerCase())
+                      ).length === 0 && (
+                        <tr>
+                          <td colSpan="3" className="p-8 text-center text-slate-400">
+                            <div className="text-2xl mb-1">👥</div>
+                            <div className="text-xs font-semibold text-slate-600">No registered students yet</div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Students who register via @Boditibingobot will automatically appear here.</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1147,6 +1186,15 @@ export function App() {
                           </td>
                         </tr>
                       ))}
+                      {submissions.length === 0 && (
+                        <tr>
+                          <td colSpan="3" className="p-8 text-center text-slate-400">
+                            <div className="text-2xl mb-1">📥</div>
+                            <div className="text-xs font-semibold text-slate-600">No pending submissions</div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">When students upload notes via the Telegram Mini App, they will appear here for review.</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

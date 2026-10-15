@@ -41,15 +41,52 @@ function setLocalItem(key, data) {
   }
 }
 
-// Seed mock store if empty
-if (typeof window !== 'undefined' && !localStorage.getItem('cshub_categories')) {
-  setLocalItem('categories', INITIAL_CATEGORIES);
-  setLocalItem('content', INITIAL_CONTENT);
-  setLocalItem('submissions', INITIAL_SUBMISSIONS);
-  setLocalItem('users', INITIAL_USERS);
-  setLocalItem('notifications', INITIAL_NOTIFICATIONS);
-  setLocalItem('audit_logs', INITIAL_AUDIT_LOGS);
-  setLocalItem('bookmarks', ['content-2']);
+// Clear legacy mock data once and seed clean store
+if (typeof window !== 'undefined') {
+  if (localStorage.getItem('cshub_clean_v1') !== 'true') {
+    localStorage.removeItem('cshub_content');
+    localStorage.removeItem('cshub_submissions');
+    localStorage.removeItem('cshub_bookmarks');
+    localStorage.removeItem('cshub_notifications');
+    localStorage.removeItem('cshub_audit_logs');
+    localStorage.removeItem('cshub_admin_materials');
+    localStorage.removeItem('cshub_admin_students');
+    localStorage.removeItem('cshub_admin_submissions');
+    localStorage.setItem('cshub_clean_v1', 'true');
+  }
+
+  if (!localStorage.getItem('cshub_categories')) {
+    setLocalItem('categories', INITIAL_CATEGORIES);
+  }
+  if (!localStorage.getItem('cshub_content')) {
+    setLocalItem('content', []);
+  }
+  if (!localStorage.getItem('cshub_submissions')) {
+    setLocalItem('submissions', []);
+  }
+  if (!localStorage.getItem('cshub_users')) {
+    setLocalItem('users', INITIAL_USERS);
+  }
+  if (!localStorage.getItem('cshub_bookmarks')) {
+    setLocalItem('bookmarks', []);
+  }
+}
+
+/**
+ * Fetch all registered users (Admin only)
+ */
+export async function getUsers() {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) return await res.json();
+    } catch (err) {
+      console.warn('API error fetching users, using local store:', err.message);
+    }
+  }
+  return getLocalItem('users', INITIAL_USERS);
 }
 
 // ==============================================================================
