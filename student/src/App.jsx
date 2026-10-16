@@ -152,7 +152,7 @@ const SAMPLE_QUESTIONS = COURSE_QUESTIONS['Data Structures'];
 
 
 export function App() {
-  const { user, profile } = useAuth();
+  const { user, profile, telegramUnregistered } = useAuth();
 
   // App Navigation & UI State
   const [page, setPage] = useState('home'); // 'home' | 'quizzes' | 'exam' | 'profile' | 'course-detail' | 'quiz-view' | 'exam-view'
@@ -527,13 +527,8 @@ export function App() {
     try {
       await submitExamAttempt({
         course_name: courseName,
-        total_questions: scoreData.total,
-        score: scoreData.correct,
-        percentage: scoreData.percentage,
+        answers: examAnswers,
         time_taken_seconds: Math.max(timeTaken, 1),
-        answers_breakdown: examAnswers,
-        student_name: profile?.full_name || user?.full_name || 'Student',
-        user_id: user?.id,
       });
       showToast('🏆 Score saved to Department Leaderboard!');
       getExamLeaderboard(courseName).then((data) => {
@@ -644,6 +639,27 @@ export function App() {
             )}
           </div>
         </header>
+
+        {/* Telegram Bot Registration Notice */}
+        {telegramUnregistered && (
+          <div className="bg-amber-500/10 border-b border-amber-500/30 px-3.5 py-2.5 flex items-center justify-between text-xs text-amber-700 dark:text-amber-300 z-20 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <div>
+                <p className="font-bold text-[11px] leading-tight">Registration Required</p>
+                <p className="text-[10px] opacity-80">Share contact in @Boditibingobot to unlock all features.</p>
+              </div>
+            </div>
+            <a
+              href="https://t.me/Boditibingobot"
+              target="_blank"
+              rel="noreferrer"
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-md shrink-0 shadow-xs"
+            >
+              Open Bot
+            </a>
+          </div>
+        )}
 
         {/* Global Search Overlay Dropdown */}
         {searchResults && (
@@ -1713,15 +1729,19 @@ export function App() {
 
               {/* Profile Card */}
               <div className={`p-4 rounded-2xl border text-center shadow-xs ${isDark ? 'bg-[#131f3d] border-slate-800' : 'bg-white border-slate-200'}`}>
-                <div className="w-14 h-14 rounded-full bg-blue-600/10 text-blue-600 text-2xl font-black flex items-center justify-center mx-auto mb-2 border border-blue-200 dark:border-blue-800">
-                  {profile?.full_name ? profile.full_name.charAt(0) : 'S'}
+                <div className="w-14 h-14 rounded-full bg-blue-600/10 text-blue-600 text-2xl font-black flex items-center justify-center mx-auto mb-2 border border-blue-200 dark:border-blue-800 overflow-hidden">
+                  {profile?.photo_url ? (
+                    <img src={profile.photo_url} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    profile?.full_name ? profile.full_name.charAt(0) : 'S'
+                  )}
                 </div>
-                <h3 className="text-sm font-bold">{profile?.full_name || 'Computer Science Student'}</h3>
+                <h3 className="text-sm font-bold">{profile?.full_name || 'Student'}</h3>
                 <div className="text-xs text-slate-400 mt-0.5">
-                  {profile?.telegram_username ? `@${profile.telegram_username}` : 'Telegram Student'}
+                  {profile?.telegram_username ? `@${profile.telegram_username}` : (profile?.telegram_id ? `ID: ${profile.telegram_id}` : 'Student')}
                 </div>
                 <div className="text-[11px] text-slate-400 font-mono mt-1">
-                  📱 {profile?.phone || '+251 91 122 3344'}
+                  📱 {profile?.phone || 'Verified via Telegram'}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-left text-xs">

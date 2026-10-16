@@ -50,22 +50,8 @@ export const INITIAL_CATEGORIES = [
 
 export const INITIAL_CONTENT = [];
 
-export const INITIAL_USERS = [
-  {
-    id: 'admin-primary',
-    email: 'admin@cshub.edu',
-    display_name: 'CS Hub Administrator',
-    role: 'super_admin',
-    status: 'active',
-    bio: 'Lead maintainer of CS Hub and student portal administrator.',
-    created_at: new Date().toISOString(),
-  },
-];
+export const INITIAL_USERS = [];
 
 export const INITIAL_SUBMISSIONS = [];
 
-export const INITIAL_NOTIFICATIONS = [];
-
 export const INITIAL_AUDIT_LOGS = [];
-
-export const INITIAL_BOOKMARKS = [];

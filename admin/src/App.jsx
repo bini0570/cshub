@@ -516,7 +516,7 @@ export function App() {
 
           <div className="mt-6 pt-4 border-t border-slate-800 text-center">
             <p className="text-[11px] text-slate-400">
-              Default access: <span className="font-mono text-blue-400">admin@cshub.edu</span> / <span className="font-mono text-blue-400">Admin@123</span>
+              Authorized administrator or moderator credentials required.
             </p>
           </div>
         </div>

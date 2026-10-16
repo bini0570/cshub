@@ -1,8 +1,18 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { requireAdmin } from './auth.js';
+import { authenticateToken, requireAdmin, rateLimit } from './auth.js';
 
 const router = Router();
+
+// Helper to generate a collision-free slug
+function slugify(text) {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+}
 
 /**
  * Fetch published content with filtering
@@ -56,7 +66,7 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * Fetch single content record by slug
+ * Fetch single content record by slug (Problem 19: drafts only accessible to staff)
  * GET /api/content/:slug
  */
 router.get('/:slug', async (req, res) => {
@@ -75,20 +85,47 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Content not found' });
     }
 
-    res.json(result.rows[0]);
+    const item = result.rows[0];
+
+    // If item is not public/published, verify staff authorization
+    if (item.status !== 'published' || item.visibility !== 'public') {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (!token) {
+        return res.status(404).json({ error: 'Content not found' });
+      }
+      try {
+        const { JWT_SECRET } = await import('./auth.js');
+        const jwt = (await import('jsonwebtoken')).default;
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (!['admin', 'super_admin', 'moderator'].includes(decoded.role)) {
+          return res.status(404).json({ error: 'Content not found' });
+        }
+      } catch (tokenErr) {
+        return res.status(404).json({ error: 'Content not found' });
+      }
+    }
+
+    res.json(item);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch content details' });
   }
 });
 
 /**
- * Track view count
+ * Track view count (Problem 21: only published content, with rate-limiting)
  * POST /api/content/:id/view
  */
-router.post('/:id/view', async (req, res) => {
+router.post('/:id/view', rateLimit({ windowMs: 60 * 1000, max: 20, message: 'Too many view pings' }), async (req, res) => {
   const { id } = req.params;
   try {
-    await query(`UPDATE content SET view_count = view_count + 1 WHERE id = $1`, [id]);
+    const result = await query(
+      `UPDATE content SET view_count = view_count + 1 WHERE id = $1 AND status = 'published' RETURNING id`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found or not published' });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to record view' });
@@ -96,13 +133,19 @@ router.post('/:id/view', async (req, res) => {
 });
 
 /**
- * Track download count
+ * Track download count (Problem 22: only published content, with rate-limiting)
  * POST /api/content/:id/download
  */
-router.post('/:id/download', async (req, res) => {
+router.post('/:id/download', rateLimit({ windowMs: 60 * 1000, max: 20, message: 'Too many download pings' }), async (req, res) => {
   const { id } = req.params;
   try {
-    await query(`UPDATE content SET download_count = download_count + 1 WHERE id = $1`, [id]);
+    const result = await query(
+      `UPDATE content SET download_count = download_count + 1 WHERE id = $1 AND status = 'published' RETURNING id`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found or not published' });
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to record download' });
@@ -110,7 +153,7 @@ router.post('/:id/download', async (req, res) => {
 });
 
 /**
- * Create content (Admin only)
+ * Create content (Admin only - Problem 24, 25, 28)
  * POST /api/content
  */
 router.post('/', requireAdmin, async (req, res) => {
@@ -132,8 +175,24 @@ router.post('/', requireAdmin, async (req, res) => {
     status = 'published',
   } = req.body;
 
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  if (!content_type) {
+    return res.status(400).json({ error: 'Content type is required' });
+  }
+
   const id = `content-${Date.now()}`;
-  const genSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  let baseSlug = slugify(slug || title);
+  if (!baseSlug) baseSlug = `item-${Date.now()}`;
+
+  // Collision-resistant slug resolution (Problem 25)
+  let finalSlug = baseSlug;
+  const existing = await query(`SELECT id FROM content WHERE slug = $1`, [finalSlug]);
+  if (existing.rows.length > 0) {
+    finalSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
+  }
 
   try {
     const result = await query(
@@ -145,30 +204,30 @@ router.post('/', requireAdmin, async (req, res) => {
       RETURNING *`,
       [
         id,
-        genSlug,
-        title,
-        description,
+        finalSlug,
+        title.trim(),
+        description || '',
         content_type,
-        body,
-        category_id,
+        body || '',
+        category_id || null,
         req.user?.id || 'admin',
-        author_name || 'Admin',
+        author_name || req.user?.full_name || 'Admin',
         JSON.stringify(tags || []),
-        difficulty_level,
-        academic_year,
-        academic_subject,
-        external_url,
-        download_url,
+        difficulty_level || null,
+        academic_year ? Number(academic_year) : null,
+        academic_subject || null,
+        external_url || null,
+        download_url || null,
         Boolean(is_featured),
         status,
       ]
     );
 
-    // Record audit log
+    // Record audit log (Problem 28)
     await query(
       `INSERT INTO audit_logs (id, admin_name, action, target_type, target_id, details)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [`log-${Date.now()}`, req.user?.email || 'Admin', 'CONTENT_CREATE', 'content', id, JSON.stringify({ title, content_type })]
+      [`log-${Date.now()}`, req.user?.email || 'Admin', 'CONTENT_CREATE', 'content', id, JSON.stringify({ title, finalSlug })]
     );
 
     res.status(201).json(result.rows[0]);
@@ -179,7 +238,7 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 /**
- * Update content (Admin only)
+ * Update content (Admin only - Problem 28)
  * PUT /api/content/:id
  */
 router.put('/:id', requireAdmin, async (req, res) => {
@@ -224,8 +283,8 @@ router.put('/:id', requireAdmin, async (req, res) => {
       WHERE id = $16
       RETURNING *`,
       [
-        title,
-        slug,
+        title ? title.trim() : null,
+        slug ? slugify(slug) : null,
         description,
         content_type,
         body,
@@ -233,11 +292,11 @@ router.put('/:id', requireAdmin, async (req, res) => {
         author_name,
         tags ? JSON.stringify(tags) : null,
         difficulty_level,
-        academic_year,
+        academic_year ? Number(academic_year) : null,
         academic_subject,
         external_url,
         download_url,
-        is_featured,
+        is_featured !== undefined ? Boolean(is_featured) : null,
         status,
         id,
       ]
@@ -247,6 +306,13 @@ router.put('/:id', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Content not found' });
     }
 
+    // Record audit log
+    await query(
+      `INSERT INTO audit_logs (id, admin_name, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [`log-${Date.now()}`, req.user?.email || 'Admin', 'CONTENT_UPDATE', 'content', id, JSON.stringify({ id, title })]
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update content' });
@@ -254,13 +320,24 @@ router.put('/:id', requireAdmin, async (req, res) => {
 });
 
 /**
- * Delete content (Admin only)
+ * Delete content (Admin only - Problem 28 & 29)
  * DELETE /api/content/:id
  */
 router.delete('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await query(`DELETE FROM content WHERE id = $1`, [id]);
+    const result = await query(`DELETE FROM content WHERE id = $1 RETURNING id, title`, [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Content not found' });
+    }
+
+    // Record audit log
+    await query(
+      `INSERT INTO audit_logs (id, admin_name, action, target_type, target_id, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [`log-${Date.now()}`, req.user?.email || 'Admin', 'CONTENT_DELETE', 'content', id, JSON.stringify(result.rows[0])]
+    );
+
     res.json({ success: true, message: 'Content deleted successfully' });
   } catch (err) {
     console.error('Delete content error:', err);
@@ -269,22 +346,28 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 });
 
 /**
- * Send content document directly to student's Telegram chat
+ * Send content document directly to student's Telegram chat (Problem 5 & 23: Authorized student or admin only)
  * POST /api/content/:id/send-to-telegram
  */
-router.post('/:id/send-to-telegram', async (req, res) => {
+router.post('/:id/send-to-telegram', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { telegram_id } = req.body;
-  const targetTelegramId = telegram_id || req.user?.telegram_id;
+
+  // Student can only request documents for their own telegram ID; admins may dispatch to others
+  const isStaff = ['admin', 'super_admin', 'moderator'].includes(req.user.role);
+  const targetTelegramId = isStaff ? (telegram_id || req.user.telegram_id) : req.user.telegram_id;
 
   if (!targetTelegramId) {
-    return res.status(400).json({ error: 'telegram_id is required' });
+    return res.status(400).json({ error: 'No Telegram ID associated with this account' });
   }
 
   try {
-    const contentRes = await query(`SELECT * FROM content WHERE id = $1`, [id]);
+    const contentRes = await query(
+      `SELECT * FROM content WHERE id = $1 AND status = 'published' AND visibility = 'public'`,
+      [id]
+    );
     if (contentRes.rows.length === 0) {
-      return res.status(404).json({ error: 'Content not found' });
+      return res.status(404).json({ error: 'Published study material not found' });
     }
     const item = contentRes.rows[0];
     const fileTarget = item.download_url || item.external_url || item.file_url;
@@ -293,7 +376,7 @@ router.post('/:id/send-to-telegram', async (req, res) => {
     const success = await sendDocumentToUser(
       targetTelegramId,
       fileTarget || `https://cshub-student.vercel.app`,
-      `📚 *${item.title}*\n${item.description || 'Study Material from CS Hub'}`
+      `📚 <b>${item.title}</b>\n${item.description || 'Study Material from CS Hub'}`
     );
 
     if (success) {
@@ -308,4 +391,3 @@ router.post('/:id/send-to-telegram', async (req, res) => {
 });
 
 export default router;
-

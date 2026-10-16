@@ -4,8 +4,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { initDatabase } from './db.js';
-import authRoutes from './routes/auth.js';
+import { initDatabase, query } from './db.js';
+import authRoutes, { authenticateToken, requireAdmin, rateLimit } from './routes/auth.js';
 import contentRoutes from './routes/content.js';
 import categoriesRoutes from './routes/categories.js';
 import submissionsRoutes from './routes/submissions.js';
@@ -29,18 +29,57 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Middleware
+// Security Headers Middleware (Problem 89)
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Explicit CORS allowlist (Problem 20)
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL,
+  'https://cshub-student.vercel.app',
+  'https://cshub-admin.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: '*', // Allows Vercel deployments and local development
+    origin: (origin, callback) => {
+      // Allow non-browser requests (Telegram bot, mobile WebApps, curl)
+      if (!origin) return callback(null, true);
+      const isAllowed = allowedOrigins.includes(origin) || allowedOrigins.some((o) => origin.startsWith(o));
+      if (isAllowed || process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin blocked by CORS policy'));
+    },
     credentials: true,
   })
 );
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static file serving for uploaded study materials
+// Payload size limit to prevent memory exhaustion (Problem 42)
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// Static file serving for study materials
 app.use('/uploads', express.static(uploadsDir));
+
+// Strict file extension allowlist for academic resources (Problem 40)
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.zip', '.png', '.jpg', '.jpeg'
+]);
+
+function isExtensionAllowed(filename) {
+  const ext = path.extname(filename || '').toLowerCase();
+  return ALLOWED_EXTENSIONS.has(ext);
+}
 
 // Multer Disk Storage for Study Materials Uploads
 let uploadMiddleware = null;
@@ -58,13 +97,23 @@ try {
   uploadMiddleware = multer({
     storage,
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    fileFilter: (req, file, cb) => {
+      if (isExtensionAllowed(file.originalname)) {
+        cb(null, true);
+      } else {
+        cb(new Error('File type not permitted. Allowed: PDF, DOCX, PPTX, TXT, ZIP, PNG, JPG'));
+      }
+    },
   });
 } catch (e) {
   console.log('Multer upload module initialized with standard fallback');
 }
 
-// File Upload Endpoint
-app.post('/api/upload', (req, res) => {
+/**
+ * File Upload Endpoint (Authenticated: Staff or Students submitting notes)
+ * POST /api/upload
+ */
+app.post('/api/upload', authenticateToken, (req, res) => {
   if (uploadMiddleware) {
     uploadMiddleware.single('file')(req, res, (err) => {
       if (err) {
@@ -84,13 +133,19 @@ app.post('/api/upload', (req, res) => {
       });
     });
   } else {
-    // Base64 upload fallback
+    // Base64 upload fallback with strict validation (Problem 41)
     const { filename, base64Data } = req.body;
     if (!base64Data) {
       return res.status(400).json({ error: 'No file data provided' });
     }
+    if (!isExtensionAllowed(filename)) {
+      return res.status(400).json({ error: 'File type not permitted. Allowed: PDF, DOCX, PPTX, TXT, ZIP, PNG, JPG' });
+    }
     try {
       const buffer = Buffer.from(base64Data, 'base64');
+      if (buffer.length > 50 * 1024 * 1024) {
+        return res.status(413).json({ error: 'File size exceeds maximum 50MB limit' });
+      }
       const safeName = `${Date.now()}-${(filename || 'material.pdf').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const targetPath = path.join(uploadsDir, safeName);
       fs.writeFileSync(targetPath, buffer);
@@ -109,25 +164,54 @@ app.post('/api/upload', (req, res) => {
   }
 });
 
-// Admin Broadcast Announcement Endpoint
-app.post('/api/bot/broadcast', async (req, res) => {
-  const { message } = req.body;
-  if (!message || !message.trim()) {
-    return res.status(400).json({ error: 'Message cannot be empty' });
-  }
+/**
+ * Admin Broadcast Announcement Endpoint (Authorized Admin Only - Problem 3)
+ * POST /api/bot/broadcast
+ */
+app.post(
+  '/api/bot/broadcast',
+  requireAdmin,
+  rateLimit({ windowMs: 60 * 1000, max: 3, message: 'Too many broadcast requests. Please wait.' }),
+  async (req, res) => {
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Message cannot be empty' });
+    }
 
-  try {
-    const formatted = `📢 **CS Hub Announcement**\n\n${message.trim()}\n\n— *CS Hub Administration*`;
-    const result = await broadcastToStudents(formatted);
-    res.json({
-      success: true,
-      message: `Announcement sent to ${result.sent} students`,
-      details: result,
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Broadcast failed', details: err.message });
+    if (message.length > 4000) {
+      return res.status(400).json({ error: 'Message exceeds maximum length of 4000 characters' });
+    }
+
+    try {
+      const formatted = `📢 <b>CS Hub Announcement</b>\n\n${message.trim()}\n\n— <i>CS Hub Administration</i>`;
+      const result = await broadcastToStudents(formatted);
+
+      // Record audit log event (Problem 28)
+      try {
+        await query(
+          `INSERT INTO audit_logs (id, admin_name, action, target_type, target_id, details)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            `log-${Date.now()}`,
+            req.user.email || req.user.full_name || 'Admin',
+            'BROADCAST_ANNOUNCEMENT',
+            'telegram_students',
+            'all',
+            JSON.stringify({ sent_count: result.sent, snippet: message.slice(0, 100) }),
+          ]
+        );
+      } catch (logErr) {}
+
+      res.json({
+        success: true,
+        message: `Announcement sent to ${result.sent} students`,
+        details: result,
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Broadcast failed', details: err.message });
+    }
   }
-});
+);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -139,10 +223,22 @@ app.use('/api/bookmarks', bookmarksRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/exams', examsRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+/**
+ * Deep Health Check verifying database readiness (Problem 43, 78)
+ * GET /api/health
+ */
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'connected';
+  try {
+    await query('SELECT 1');
+  } catch (e) {
+    dbStatus = 'disconnected';
+  }
+
+  const isHealthy = dbStatus === 'connected';
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'healthy' : 'degraded',
+    database: dbStatus,
     platform: 'CS Hub Railway API',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),

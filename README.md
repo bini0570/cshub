@@ -1,28 +1,63 @@
-# CS HUB — Computer Science Student Content Platform
+# CS HUB — Computer Science Student Content Platform & Telegram Mini App
 
 [![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Express](https://img.shields.io/badge/Express-4.19-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Telegram](https://img.shields.io/badge/Telegram_Bot-Mini_App-26A5E4?logo=telegram&logoColor=white)](https://telegram.org/)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%26_Auth-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
-[![Tests](https://img.shields.io/badge/Tests-16_Passing-brightgreen)](https://vitest.dev/)
 
-An independent, production-oriented content platform designed specifically for Computer Science students, software engineering majors, and aspiring developers. 
+An independent, production-ready educational platform designed specifically for Computer Science students, software engineering majors, and tech enthusiasts. CS Hub unites a mobile-optimized Telegram Mini App, an administrative operations portal, an Express REST API, and an automated Telegram Bot.
 
 > **Important Platform Distinction:**  
-> CS Hub is **NOT** an official university website, school administrative management system, LMS, or course registration portal. It deliberately does not contain student grades, attendance records, university bureaucracy, or course enrollment features. Its sole focus is delivering high-value technical tutorials, downloadable exam cheatsheets, vetted developer tools, open-source projects, and career opportunities.
+> CS Hub is **NOT** an administrative university portal or official student grading registrar. Its sole focus is delivering high-value academic resources, MoSHE exit exam preparation questions, department cheatsheets, vetted developer tools, and student study notes.
 
 ---
 
-## 1. Architectural Highlights
+## 1. System Architecture
 
-- **Mobile-First Responsive UX:** Optimized for Android and desktop viewports with a 44px minimum touch target, dark navy & teal color scheme, custom restrained transitions, and fluid light/dark mode.
-- **Zero-Trust Security & RLS:** PostgreSQL Row Level Security (RLS) policies enforce least privilege. Ordinary students can never elevate roles or access private submission staging.
-- **Dual-Storage Isolation:**
-  - `submissions` bucket: Strictly private bucket for student uploads during peer review.
-  - `public-content` bucket: Public CDN bucket for approved, downloadable materials.
-  - 20 MB size ceiling per file, with hard-coded rejection of executable binaries (`.exe`, `.bat`, `.cmd`, `.sh`, `.bin`, `.msi`).
-- **XSS Defense:** DOMPurify sanitization pipeline cleanses rich-text HTML rendering across all tutorials and articles.
-- **Zero-Config Demonstration Fallback:** If live Supabase credentials are not yet supplied in `.env`, the frontend gracefully falls back to an interactive client-side repository with sample data, role preview switcher, bookmarking, and moderation workflows.
+```mermaid
+flowchart TD
+    subgraph Telegram_Ecosystem["Telegram Client & Ecosystem"]
+        TGUser["CS Student (Telegram Client)"]
+        Bot["@Boditibingobot (Bot Daemon)"]
+        MiniApp["Student Mini App (React / Vercel)"]
+    end
+
+    subgraph Backend_Infrastructure["Railway Backend Services"]
+        API["Express 4 REST API (:5000)"]
+        AuthMiddleware["JWT & HMAC InitData Auth Engine"]
+        ExamEngine["Authoritative Server-Side Exam Grader"]
+        DB[("PostgreSQL Database")]
+    end
+
+    subgraph Admin_Portal["Operations Portal"]
+        AdminWeb["Admin Operations Dashboard (Vite / Vercel)"]
+    end
+
+    TGUser -->|"1. /start & Share Contact"| Bot
+    Bot -->|"2. Verify Phone Ownership & Upsert Student"| DB
+    TGUser -->|"3. Launch Mini App"| MiniApp
+    MiniApp -->|"4. Authenticate initData (HMAC-SHA256)"| API
+    API --> AuthMiddleware
+    AuthMiddleware --> DB
+    MiniApp -->|"5. Submit Exit Exam Answers"| ExamEngine
+    ExamEngine -->|"6. Authoritative Scoring & History"| DB
+    AdminWeb -->|"7. Moderate Notes, Content & Roles"| API
+    API -->|"8. Direct Delivery & Alerts"| Bot
+```
+
+### Component Breakdown
+1. **Student Mini App (`/student`):**
+   - Built with Vite, React 18, and Tailwind CSS.
+   - Designed for Telegram Mini App mobile viewports with haptic feedback, theme synchronization (dark/light), and native back-button integration.
+   - Displays real verified Telegram student identities directly from native Telegram contexts.
+2. **Admin Operations Portal (`/admin`):**
+   - Management dashboard for course catalogs, study notes review queue, student directory, broadcasts, and immutable audit logs.
+3. **Backend API & Bot (`/backend`):**
+   - Express REST server enforcing JWT authentication, rate limiting, and CORS allowlisting.
+   - Telegram Bot daemon (`backend/bot.js`) running via Telegraf for contact verification and 1-tap PDF delivery.
+   - Authoritative PostgreSQL data store (`backend/db.js`).
 
 ---
 
@@ -30,200 +65,150 @@ An independent, production-oriented content platform designed specifically for C
 
 ```text
 cshub/
-├── .env.example                     # Environment template without secrets
-├── .gitignore                       # Git exclusions
-├── index.html                       # HTML5 entry with Inter & JetBrains Mono fonts
-├── package.json                     # Version-pinned dependencies
-├── vite.config.js                   # Vite & Vitest configuration
-├── tailwind.config.js               # Brand navy (#0b132b) & teal (#14b8a6) themes
-├── postcss.config.js                # PostCSS Tailwind plugins
-├── supabase/
-│   ├── migrations/
-│   │   ├── 20261013000001_initial_schema.sql    # Tables, keys, and indexes
-│   │   ├── 20261013000002_rls_policies.sql      # RLS policies & admin bootstrap
-│   │   └── 20261013000003_storage_buckets.sql   # Private & public storage buckets
-│   └── seed.sql                                 # 12 categories, tags, settings & seed posts
-├── tests/
-│   ├── setup.js                     # DOM cleanup & window mocks
-│   ├── validators.test.js           # File size limits, extensions, URLs & slugs
-│   ├── security_and_rls.test.js     # DOMPurify XSS defenses & formatters
-│   ├── components.test.jsx          # UI render tests (Logo, Badge, Button, EmptyState)
-│   └── routes.test.jsx              # Public browsing & unauthenticated flows
-└── src/
-    ├── main.jsx                     # StrictMode root mount
-    ├── App.jsx                      # Router with all 21 routes & role guards
-    ├── index.css                    # Tailwind directives & CSS custom variables
-    ├── context/
-    │   ├── AuthContext.jsx          # Supabase Auth, profiles, and demo role switcher
-    │   └── ThemeContext.jsx         # Dark/light theme persistence
-    ├── lib/
-    │   └── supabase.js              # Supabase client & repository abstraction
-    ├── utils/
-    │   ├── sanitize.js              # DOMPurify sanitization
-    │   ├── formatters.js            # Human bytes, reading times, relative dates
-    │   └── validators.js            # Size, MIME, URL & slug validators
-    ├── components/
-    │   ├── common/                  # Logo, Breadcrumbs, Pagination, RichText, Share
-    │   ├── layout/                  # Navbar, Footer, MobileBottomNav, AdminLayout
-    │   └── ui/                      # Button, Card, Badge, Input, Select, Modal, Skeleton
-    ├── features/
-    │   ├── auth/                    # ProtectedRoute, AdminRoute guards
-    │   ├── bookmarks/               # BookmarkButton & saved lists
-    │   ├── content/                 # ContentCard, ContentGrid, CategoryFilter
-    │   └── search/                  # GlobalSearchModal with Cmd+K shortcuts
-    └── pages/
-        ├── HomePage.jsx             # Hero, featured picks, resources, tools, CTA
-        ├── ResourcesPage.jsx        # Searchable downloadable resource library
-        ├── ResourceDetailPage.jsx  # Download tracking & study notes
-        ├── ArticlesPage.jsx         # Tech articles & tutorials
-        ├── ArticleDetailPage.jsx   # Full sanitized guide with reading time
-        ├── ToolsPage.jsx            # Developer tools & AI utilities
-        ├── ToolDetailPage.jsx       # Tool launch card & features
-        ├── OpportunitiesPage.jsx    # Tech internships & GSoC listings
-        ├── OpportunityDetailPage.jsx# Application guidelines & link
-        ├── SearchPage.jsx           # Cross-platform full search & filter
-        ├── AboutPage.jsx            # Mission, independent status, workflow
-        ├── ContactPage.jsx          # Contact & content correction ticket form
-        ├── LoginPage.jsx            # Authentication & quick role exploration
-        ├── RegisterPage.jsx         # Minimal student registration
-        ├── ForgotPasswordPage.jsx   # Password recovery flow
-        ├── ProfilePage.jsx          # Student profile & attribution
-        ├── BookmarksPage.jsx        # Saved material collections
-        ├── SubmitPage.jsx           # Student material submission & file staging
-        ├── MySubmissionsPage.jsx    # Submission history, statuses & review notes
-        ├── SettingsPage.jsx         # Notification toggles & security details
-        ├── NotFoundPage.jsx         # 404 handler
-        └── admin/
-            ├── AdminDashboardPage.jsx      # Real database metrics & activity
-            ├── AdminModerationPage.jsx     # Moderation queue & approve/reject
-            ├── AdminContentPage.jsx        # Content CRUD & featured toggle
-            ├── AdminContentEditorPage.jsx  # Content editor with HTML preview
-            ├── AdminUsersPage.jsx          # User search, suspension & roles
-            ├── AdminAuditLogsPage.jsx      # Immutable administrative audit log
-            └── AdminSettingsPage.jsx       # Global platform settings & caps
+├── backend/
+│   ├── .env.example                     # Backend environment template
+│   ├── package.json                     # Express, Telegraf, pg, bcryptjs, jsonwebtoken
+│   ├── server.js                        # Express server, security headers, rate limits
+│   ├── bot.js                           # Telegram bot: /start, contact share, /login
+│   ├── db.js                            # PostgreSQL pool & auto-migrations
+│   └── routes/
+│       ├── auth.js                      # Telegram WebApp HMAC auth, login, token refresh
+│       ├── content.js                   # Course notes, resources, downloads, send-to-bot
+│       ├── submissions.js               # Student study note uploads & review queue
+│       ├── exams.js                     # Server-side exam grading & leaderboards
+│       └── users.js                     # Student directories, role management, audit
+├── student/
+│   ├── index.html                       # Telegram Mini App entry point
+│   ├── package.json                     # Vite + React + Lucide icons
+│   ├── tailwind.config.js               # Telegram dark/light theme tokens
+│   └── src/
+│       ├── App.jsx                      # Mini App views: Home, Quizzes, Exit Exam, Profile
+│       ├── context/AuthContext.jsx      # Native WebApp initData validation & session
+│       └── lib/api.js                   # Authenticated API client
+├── admin/
+│   ├── index.html                       # Admin portal entry point
+│   ├── package.json                     # Vite + React admin suite
+│   └── src/
+│       ├── App.jsx                      # Moderation, Content CRUD, Users, Audit Logs
+│       ├── context/AuthContext.jsx      # Admin session & privilege guards
+│       └── lib/api.js                   # Admin API client
+└── README.md
 ```
 
 ---
 
-## 3. Database Schema & Row Level Security (RLS)
+## 3. Database Schema (PostgreSQL)
 
-All tables strictly enforce PostgreSQL Row Level Security:
+All production records reside in persistent PostgreSQL tables:
 
-| Table | Anonymous Visitors | Authenticated Students | Administrators |
-| :--- | :--- | :--- | :--- |
-| `profiles` | Read active public profiles | Read & edit own record (no role escalation) | Full CRUD |
-| `categories` | Read only | Read only | Full CRUD |
-| `tags` | Read only | Read only | Full CRUD |
-| `content` | Read `status='published'` & `visibility='public'` | Read published + own drafts | Full CRUD |
-| `content_files` | Read files of published content | Read files of published content | Full CRUD |
-| `submissions` | No access (0 rows) | Read & create own; edit if `changes_requested` | Full review & CRUD |
-| `submission_files` | No access (0 rows) | Upload & read own submission files | Full review & CRUD |
-| `bookmarks` | No access | Manage only own bookmarks (`user_id = auth.uid()`) | Read all |
-| `reports` | Create ticket | Create ticket | Review & resolve |
-| `admin_audit_logs` | No access | No access | Read & write logs |
-| `site_settings` | Read only | Read only | Full CRUD |
+| Table | Description | Access Rules |
+| :--- | :--- | :--- |
+| `users` | Telegram-verified students and staff administrators | Authenticated session; self-profile only; super-admin role changes |
+| `telegram_auth_codes` | One-time 5-minute login codes for desktop login | Single-use atomic consumption (`UPDATE ... RETURNING *`) |
+| `categories` | Computer Science subjects and curriculum taxonomies | Public read; Admin CRUD |
+| `content` | Curated course materials, lecture slides, cheatsheets | Public for published items; Staff for drafts/private |
+| `submissions` | Student study notes uploaded for peer review | Submitter reads own; Moderator/Admin reviews |
+| `bookmarks` | Saved study materials per student account | Student-scoped |
+| `audit_logs` | Immutable log of administrative decisions | Staff read-only; Append-only on sensitive actions |
+| `exam_attempts` | Authoritative server-graded exit exam scores | Authenticated student history; Anonymized leaderboard |
 
-### Secure First-Admin Bootstrap Function
+---
 
-To avoid insecure self-registration or exposing service-role keys:
+## 4. Security & Data Integrity Features
 
-```sql
--- Run in the Supabase SQL Editor:
-SELECT public.bootstrap_first_admin('your-registered-email@example.com');
+- **No Hardcoded Bypasses:** Passwords verified strictly with `bcrypt`. Hardcoded bypasses and default credentials have been eradicated.
+- **Strict JWT Secret:** Server refuses production boot without a strong `JWT_SECRET`.
+- **Contact Ownership Verification:** Telegram Bot strictly verifies `contact.user_id === message.from.id` before creating or updating student records.
+- **HMAC-SHA256 InitData Freshness:** Mini App authentication cryptographically verifies the bot secret hash and enforces a 24-hour freshness window, rejecting future timestamps.
+- **Atomic Verification Codes:** Desktop login codes expire in 5 minutes and are marked `used = TRUE` in an atomic database statement to prevent race conditions.
+- **Authoritative Server-Side Exam Grading:** Exam answer keys remain confidential on the server. Scores are computed exclusively server-side from raw student answer submissions.
+- **Role Escalation Defense:** Role changes require `super_admin` privilege. Modifying own role or removing the last active super-administrator is transactionally blocked.
+- **File Upload Security:** Upload endpoints enforce authentication, 50MB size ceilings, and a strict academic filetype allowlist (`.pdf`, `.docx`, `.pptx`, `.txt`, `.zip`, `.png`, `.jpg`, `.jpeg`).
+
+---
+
+## 5. Environment Variables & Setup
+
+### Backend (`backend/.env`)
+
+```env
+# PostgreSQL connection URL (Provided automatically by Railway)
+DATABASE_URL=postgresql://postgres:password@roundhouse.proxy.rlwy.net:5432/railway
+
+# Server Port
+PORT=5000
+
+# JSON Web Token Secret (Long random string)
+JWT_SECRET=cshub_super_secret_jwt_key_railway_production_2026
+
+# Telegram Bot Token (from @BotFather)
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
+
+# Frontend Origin URLs (for CORS allowlisting)
+FRONTEND_URL=https://cshub-student.vercel.app
+ADMIN_URL=https://cshub-admin.vercel.app
+
+# Default Primary Admin (Auto-provisioned on clean DB initialize)
+ADMIN_EMAIL=admin@cshub.edu
+ADMIN_PASSWORD=SetAStrongPasswordHere2026!
 ```
 
-This procedure checks whether any administrator already exists. If none exist, it elevates the account to `super_admin`. Once an admin exists, subsequent calls fail immediately.
+### Student Mini App (`student/.env`)
+
+```env
+# Backend REST API endpoint
+VITE_API_URL=https://cshub-production.up.railway.app
+```
+
+### Admin Dashboard (`admin/.env`)
+
+```env
+# Backend REST API endpoint
+VITE_API_URL=https://cshub-production.up.railway.app
+```
 
 ---
 
-## 4. Local Development Setup
+## 6. Local Development
 
-### Prerequisites
-- Node.js (v18+ recommended; verified on Node v24.18)
-- npm (v9+)
-
-### Installation Steps
-
-1. **Clone the repository and enter the directory:**
-   ```bash
-   git clone https://github.com/your-username/cshub.git
-   cd cshub
-   ```
-
-2. **Install project dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables:**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` to include your Supabase project credentials:
-   ```env
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
-   ```
-   *(If left empty, CS Hub operates seamlessly in local demonstration mode using the verified mock repository).*
-
-4. **Apply Supabase Migrations & Seed Data:**
-   In your Supabase project dashboard SQL Editor, execute in order:
-   - `supabase/migrations/20261013000001_initial_schema.sql`
-   - `supabase/migrations/20261013000002_rls_policies.sql`
-   - `supabase/migrations/20261013000003_storage_buckets.sql`
-   - `supabase/seed.sql`
-
-5. **Start Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:5173](http://localhost:5173) in your browser.
-
----
-
-## 5. Verification & Testing
-
-Run the automated test suite powered by Vitest and React Testing Library:
-
+### 1. Backend & Bot
 ```bash
-npm test
+cd backend
+npm install
+npm run dev
 ```
 
-### Verified Test Suites:
-- `tests/validators.test.js` (5 tests): Enforces 20MB file limit, executable rejection (`.exe`, `.bat`, `.cmd`, `.sh`, `.bin`), safe URL checks, and slug generation.
-- `tests/security_and_rls.test.js` (6 tests): Validates DOMPurify sanitization stripping `<script>`, inline `onerror`, `<iframe>`, while preserving code blocks and links. Verifies human byte and reading time calculations.
-- `tests/components.test.jsx` (4 tests): Tests rendering of the CS Hub geometric logo, status badges, buttons in loading/disabled states, and empty states.
-- `tests/routes.test.jsx` (1 test): Verifies public browsing and unauthenticated exploration across the application.
-
-### Production Build:
+### 2. Student Mini App
 ```bash
-npm run build
+cd student
+npm install
+npm run dev
 ```
-Generates an optimized bundle in `dist/`.
+
+### 3. Admin Dashboard
+```bash
+cd admin
+npm install
+npm run dev
+```
 
 ---
 
-## 6. Vercel Deployment
+## 7. Deployment Instructions
 
-1. Push your repository to GitHub.
-2. In the [Vercel Dashboard](https://vercel.com/), select **Add New Project** and import the GitHub repo.
-3. Framework Preset: **Vite**.
-4. Configure Environment Variables in Vercel:
-   - `VITE_SUPABASE_URL`: Your Supabase URL
-   - `VITE_SUPABASE_ANON_KEY`: Your Supabase public anonymous key
-5. Deploy. Rewrites for single-page React apps are handled automatically.
+### Backend (Railway)
+1. Create a project in [Railway](https://railway.app) and attach a **PostgreSQL** service.
+2. Connect your GitHub repository and set the root directory to `/backend`.
+3. Configure the environment variables (`DATABASE_URL`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `FRONTEND_URL`, `ADMIN_URL`).
+4. Railway runs `npm start`, which applies PostgreSQL migrations automatically.
 
----
+### Student Mini App (Vercel)
+1. In [Vercel](https://vercel.com), import your repository and set the root directory to `student`.
+2. Framework Preset: **Vite**.
+3. Set Environment Variable: `VITE_API_URL` pointing to your deployed Railway backend.
+4. Add the deployed Vercel domain to your Bot via `@BotFather` (`/setmenubutton` or Mini App configuration).
 
-## 7. Status & Manual Configuration Requirements
-
-- [x] Responsive React + Vite application with Tailwind CSS (navy & teal theme).
-- [x] All 21 specified public, student, and admin routes implemented.
-- [x] SQL migrations with complete table schemas, foreign keys, and indexes.
-- [x] PostgreSQL Row Level Security (RLS) policies for zero-trust authorization.
-- [x] Private staging storage bucket (`submissions`) and public CDN bucket (`public-content`).
-- [x] Material submission workflow with file validation (20MB ceiling, executable ban).
-- [x] Admin dashboard with live metrics, moderation queue, content editor, user management, and audit logs.
-- [x] DOMPurify rich-text XSS sanitization.
-- [x] 16 automated Vitest tests passing.
-- [ ] **External Configuration Required:** To connect to a live Supabase instance, create a project at [supabase.com](https://supabase.com), run the 3 SQL migrations and seed file in the Supabase SQL editor, and paste the URL and anon key into `.env`.
+### Admin Dashboard (Vercel)
+1. In [Vercel](https://vercel.com), import your repository and set the root directory to `admin`.
+2. Framework Preset: **Vite**.
+3. Set Environment Variable: `VITE_API_URL` pointing to your deployed Railway backend.

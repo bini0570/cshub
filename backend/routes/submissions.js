@@ -1,19 +1,28 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { authenticateToken, requireAdmin } from './auth.js';
+import { authenticateToken, requireModerator, rateLimit } from './auth.js';
 
 const router = Router();
+
+function slugify(text) {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '');
+}
 
 /**
  * Fetch submissions
  * GET /api/submissions
  */
 router.get('/', authenticateToken, async (req, res) => {
-  const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin' || req.user.role === 'moderator';
+  const isStaff = ['admin', 'super_admin', 'moderator'].includes(req.user.role);
 
   try {
     let result;
-    if (isAdmin) {
+    if (isStaff) {
       result = await query(`
         SELECT s.*, cat.name as category_name
         FROM submissions s
@@ -36,81 +45,109 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 /**
- * Create submission
+ * Create submission (Student: rate limited, validated - Problem 56, 57, 58)
  * POST /api/submissions
  */
-router.post('/', authenticateToken, async (req, res) => {
-  const { title, content_type, description, category_id, external_url, file_url } = req.body;
-  if (!title || !content_type) {
-    return res.status(400).json({ error: 'Title and content type are required' });
-  }
+router.post(
+  '/',
+  authenticateToken,
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 6, message: 'Submission limit reached. Please wait 10 minutes.' }),
+  async (req, res) => {
+    const { title, content_type, description, category_id, external_url, file_url } = req.body;
 
-  const id = `sub-${Date.now()}`;
-  try {
-    const result = await query(
-      `INSERT INTO submissions (
-        id, submitter_id, submitter_name, submitter_telegram,
-        title, content_type, description, category_id, external_url, file_url, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
-      RETURNING *`,
-      [
-        id,
-        req.user.id,
-        req.user.full_name || req.user.email || 'Student',
-        req.user.telegram_username || null,
-        title,
-        content_type,
-        description,
-        category_id,
-        external_url,
-        file_url,
-      ]
-    );
-
-    const submission = result.rows[0];
-
-    // Alert admins on Telegram
-    try {
-      const adminRes = await query(`SELECT telegram_id FROM users WHERE role IN ('admin', 'super_admin') AND telegram_id IS NOT NULL`);
-      if (adminRes.rows.length > 0) {
-        const { notifyStudent } = await import('../bot.js');
-        const studentName = req.user.full_name || req.user.email || 'Student';
-        for (const aRow of adminRes.rows) {
-          if (aRow.telegram_id) {
-            await notifyStudent(
-              aRow.telegram_id,
-              `📥 **New Study Note Submitted for Review!**\n\n` +
-              `• **Title:** ${title}\n` +
-              `• **Student:** ${studentName}\n` +
-              `• **Category / Subject:** ${category_id || 'General CS'}\n\n` +
-              `Please open the Admin Console to review and approve.`
-            ).catch(() => {});
-          }
-        }
-      }
-    } catch (botErr) {
-      console.warn('Admin submission alert warning:', botErr.message);
+    if (!title || typeof title !== 'string' || title.trim().length < 3) {
+      return res.status(400).json({ error: 'A valid title of at least 3 characters is required' });
     }
 
-    res.status(201).json(submission);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to create submission' });
+    if (!content_type) {
+      return res.status(400).json({ error: 'Content type is required' });
+    }
+
+    // URL validation (Problem 57)
+    const validUrlPrefix = (u) => !u || u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/uploads/');
+    if (!validUrlPrefix(external_url) || !validUrlPrefix(file_url)) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    const id = `sub-${Date.now()}`;
+    try {
+      const result = await query(
+        `INSERT INTO submissions (
+          id, submitter_id, submitter_name, submitter_telegram,
+          title, content_type, description, category_id, external_url, file_url, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
+        RETURNING *`,
+        [
+          id,
+          req.user.id,
+          req.user.full_name || req.user.email || 'Student',
+          req.user.telegram_username || null,
+          title.trim(),
+          content_type,
+          description || '',
+          category_id || null,
+          external_url || null,
+          file_url || null,
+        ]
+      );
+
+      const submission = result.rows[0];
+
+      // Alert admins on Telegram using safe formatting (Problem 51)
+      try {
+        const adminRes = await query(`SELECT telegram_id FROM users WHERE role IN ('admin', 'super_admin') AND telegram_id IS NOT NULL`);
+        if (adminRes.rows.length > 0) {
+          const { notifyStudent } = await import('../bot.js');
+          const studentName = (req.user.full_name || req.user.email || 'Student').replace(/[<>&]/g, '');
+          const safeTitle = title.trim().replace(/[<>&]/g, '');
+          for (const aRow of adminRes.rows) {
+            if (aRow.telegram_id) {
+              await notifyStudent(
+                aRow.telegram_id,
+                `📥 <b>New Study Note Submitted for Review!</b>\n\n` +
+                `• <b>Title:</b> ${safeTitle}\n` +
+                `• <b>Student:</b> ${studentName}\n` +
+                `• <b>Subject:</b> ${category_id || 'General CS'}\n\n` +
+                `Open the Admin Console to review and approve.`
+              ).catch(() => {});
+            }
+          }
+        }
+      } catch (botErr) {
+        console.warn('Admin submission alert warning:', botErr.message);
+      }
+
+      res.status(201).json(submission);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to create submission' });
+    }
   }
-});
+);
 
 /**
- * Review submission (Admin only)
+ * Review submission (Staff / Moderator - Problem 13, 30, 32, 53, 54, 55, 59)
  * PATCH /api/submissions/:id/review
  */
-router.patch('/:id/review', requireAdmin, async (req, res) => {
+router.patch('/:id/review', requireModerator, async (req, res) => {
   const { id } = req.params;
   const { status, review_note, publish } = req.body;
 
   if (!['approved', 'rejected', 'pending'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid review status' });
+    return res.status(400).json({ error: 'Invalid review status. Must be approved, rejected, or pending.' });
   }
 
   try {
+    // 1. Fetch current submission state
+    const currentSubRes = await query(`SELECT * FROM submissions WHERE id = $1`, [id]);
+    if (currentSubRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+    const currentSub = currentSubRes.rows[0];
+
+    // Idempotent guard: if already approved, do not publish duplicate content (Problem 53)
+    const alreadyApproved = currentSub.status === 'approved';
+
+    // 2. Update submission record
     const result = await query(
       `UPDATE submissions SET
         status = $1,
@@ -122,15 +159,11 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
       [status, review_note || '', req.user.id, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Submission not found' });
-    }
-
     const submission = result.rows[0];
 
-    // If approved and publish flag is true, create content entry
-    if (status === 'approved' && publish) {
-      const slug = submission.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Date.now().toString().slice(-4);
+    // 3. If approved, publish is true, and NOT already published, create content entry
+    if (status === 'approved' && publish && !alreadyApproved) {
+      let slug = slugify(submission.title) + '-' + Date.now().toString().slice(-4);
       await query(
         `INSERT INTO content (
           id, slug, title, description, content_type, category_id,
@@ -140,41 +173,43 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
           `content-${Date.now()}`,
           slug,
           submission.title,
-          submission.description,
-          submission.content_type,
-          submission.category_id,
+          submission.description || '',
+          submission.content_type || 'notes',
+          submission.category_id || null,
           submission.submitter_id,
-          submission.submitter_name,
-          submission.external_url,
-          submission.file_url,
+          submission.submitter_name || 'Student Contributor',
+          submission.external_url || null,
+          submission.file_url || null,
         ]
       );
     }
 
-    // Add audit log
+    // 4. Record audit log (Problem 28)
     await query(
       `INSERT INTO audit_logs (id, admin_name, action, target_type, target_id, details)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         `log-${Date.now()}`,
-        req.user.email || req.user.full_name || 'Admin',
+        req.user.email || req.user.full_name || 'Staff',
         `SUBMISSION_${status.toUpperCase()}`,
         'submission',
         id,
-        JSON.stringify({ status, review_note, publish }),
+        JSON.stringify({ status, review_note, publish, was_already_approved: alreadyApproved }),
       ]
     );
 
-    // Notify student via Telegram Bot if available
-    try {
-      if (submission.submitter_id) {
+    // 5. Notify student via Telegram Bot if available (Safe HTML escaping - Problem 51)
+    if (!alreadyApproved && submission.submitter_id) {
+      try {
         const userRes = await query('SELECT telegram_id FROM users WHERE id = $1', [submission.submitter_id]);
         if (userRes.rows.length > 0 && userRes.rows[0].telegram_id) {
           const { notifyStudent } = await import('../bot.js');
+          const safeTitle = submission.title.replace(/[<>&]/g, '');
+
           if (status === 'approved') {
             await notifyStudent(
               userRes.rows[0].telegram_id,
-              `🎉 **Great news!** Your study material submission *"${submission.title}"* has been approved and published to CS Hub!`
+              `🎉 <b>Great news!</b> Your study material submission <i>"${safeTitle}"</i> has been approved and published to CS Hub!`
             );
 
             // Channel auto-post if TELEGRAM_CHANNEL_ID is set
@@ -186,12 +221,12 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
                 if (b) {
                   await b.sendMessage(
                     channelId,
-                    `📚 **New Study Material Published to CS Hub!**\n\n` +
-                    `📖 **${submission.title}**\n` +
+                    `📚 <b>New Study Material Published to CS Hub!</b>\n\n` +
+                    `📖 <b>${safeTitle}</b>\n` +
                     `👤 Contributed by: ${submission.submitter_name || 'Student'}\n\n` +
-                    `Tap below to open in the CS Hub Mini App:`,
+                    `Open the CS Hub Mini App to access the resource:`,
                     {
-                      parse_mode: 'Markdown',
+                      parse_mode: 'HTML',
                       reply_markup: {
                         inline_keyboard: [
                           [
@@ -210,19 +245,21 @@ router.patch('/:id/review', requireAdmin, async (req, res) => {
               console.warn('Channel post warning:', chanErr.message);
             }
           } else if (status === 'rejected') {
+            const safeNote = (review_note || 'Please check requirements.').replace(/[<>&]/g, '');
             await notifyStudent(
               userRes.rows[0].telegram_id,
-              `ℹ️ Your submission *"${submission.title}"* was reviewed. Note: ${review_note || 'Please check requirements.'}`
+              `ℹ️ Your submission <i>"${safeTitle}"</i> was reviewed.\nFeedback: ${safeNote}`
             );
           }
         }
+      } catch (botErr) {
+        console.warn('Could not notify student via bot:', botErr.message);
       }
-    } catch (botErr) {
-      console.warn('Could not notify student via bot:', botErr.message);
     }
 
     res.json(submission);
   } catch (err) {
+    console.error('Review submission error:', err);
     res.status(500).json({ error: 'Failed to review submission' });
   }
 });

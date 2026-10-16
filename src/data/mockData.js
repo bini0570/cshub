@@ -341,38 +341,7 @@ export const INITIAL_SUBMISSIONS = [
   },
 ];
 
-export const INITIAL_USERS = [
-  {
-    id: 'user-admin-1',
-    email: 'admin@cshub.dev',
-    display_name: 'Alex Mercer (Platform Admin)',
-    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    role: 'super_admin',
-    status: 'active',
-    bio: 'Lead maintainer of CS Hub and systems engineering researcher.',
-    created_at: '2026-09-01T00:00:00Z',
-  },
-  {
-    id: 'user-student-1',
-    email: 'jordan@student.university.edu',
-    display_name: 'Jordan Rivera',
-    avatar_url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
-    role: 'student',
-    status: 'active',
-    bio: 'Third-year CS student interested in distributed systems and systems programming.',
-    created_at: '2026-09-15T10:00:00Z',
-  },
-  {
-    id: 'user-student-2',
-    email: 'sarah.chen@techstudent.org',
-    display_name: 'Sarah Chen',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-    role: 'student',
-    status: 'active',
-    bio: 'AI researcher and open-source enthusiast.',
-    created_at: '2026-09-20T14:30:00Z',
-  },
-];
+export const INITIAL_USERS = [];
 
 export const INITIAL_NOTIFICATIONS = [
   {

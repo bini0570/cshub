@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { INITIAL_USERS } from '../data/mockData';
 
 const AuthContext = createContext();
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -15,7 +14,7 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     async function initAuth() {
-      // 0. Telegram Mini App Native Auto-Auth
+      // 0. Telegram Mini App Native Profile Detection
       const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
       if (tg) {
         try {
@@ -23,6 +22,25 @@ export function AuthProvider({ children }) {
           tg.expand();
         } catch (e) {}
 
+        const tgUser = tg.initDataUnsafe?.user;
+        if (tgUser) {
+          // Immediately show real Telegram student profile
+          const immediateProfile = {
+            id: `student-${tgUser.id}`,
+            telegram_id: tgUser.id,
+            telegram_username: tgUser.username || null,
+            full_name: [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || tgUser.username || 'Student',
+            role: 'student',
+            status: 'active',
+            photo_url: tgUser.photo_url || null,
+          };
+          if (mounted) {
+            setUser(immediateProfile);
+            setProfile(immediateProfile);
+          }
+        }
+
+        // Authenticate with backend database if initData is present
         if (tg.initData && API_BASE_URL) {
           try {
             const res = await fetch(`${API_BASE_URL}/api/auth/telegram-webapp-auth`, {
@@ -40,7 +58,7 @@ export function AuthProvider({ children }) {
                 setIsLoading(false);
                 return;
               }
-            } else if (data.registered === false) {
+            } else if (data.registered === false || res.status === 403) {
               if (mounted) {
                 setTelegramUnregistered(true);
                 setIsLoading(false);
@@ -48,14 +66,18 @@ export function AuthProvider({ children }) {
               }
             }
           } catch (tgErr) {
-            console.warn('Telegram WebApp auth attempt failed:', tgErr.message);
+            console.warn('Telegram WebApp backend auth attempt error:', tgErr.message);
           }
+        }
+
+        if (tgUser && mounted) {
+          setIsLoading(false);
+          return;
         }
       }
 
+      // 1. Web session validation via JWT token
       const token = localStorage.getItem('cshub_token');
-
-      // 1. If we have a JWT token and Railway API is configured, verify session
       if (token && API_BASE_URL) {
         try {
           const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
@@ -73,24 +95,20 @@ export function AuthProvider({ children }) {
               return;
             }
           } else {
-            // Token expired or invalid
+            // Token expired or revoked
             localStorage.removeItem('cshub_token');
+            localStorage.removeItem('cshub_current_user_id');
           }
         } catch (err) {
-          console.warn('Could not connect to Railway auth API, checking local session:', err.message);
+          console.warn('Backend auth verification error:', err.message);
         }
       }
 
-      // 2. Local fallback session
-      const savedMockUserId = localStorage.getItem('cshub_current_user_id');
-      const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-      const found = users.find((u) => u.id === (savedMockUserId || 'user-admin-1')) || users[0];
-
-      if (found && mounted) {
-        setUser({ id: found.id, email: found.email, full_name: found.full_name || found.display_name });
-        setProfile(found);
+      if (mounted) {
+        setUser(null);
+        setProfile(null);
+        setIsLoading(false);
       }
-      if (mounted) setIsLoading(false);
     }
 
     initAuth();
@@ -104,39 +122,33 @@ export function AuthProvider({ children }) {
    */
   const loginWithTelegramCode = async (code) => {
     setIsLoading(true);
-    if (API_BASE_URL) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/telegram-verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Verification code invalid or expired');
-        }
-
-        localStorage.setItem('cshub_token', data.token);
-        localStorage.setItem('cshub_current_user_id', data.user.id);
-        setUser(data.user);
-        setProfile(data.user);
-        setIsLoading(false);
-        return data.user;
-      } catch (err) {
-        setIsLoading(false);
-        throw err;
-      }
+    if (!API_BASE_URL) {
+      setIsLoading(false);
+      throw new Error('API server is not configured.');
     }
 
-    // Local simulated verification code fallback
-    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const student = users.find((u) => u.role === 'student') || users[0];
-    setUser({ id: student.id, email: student.email });
-    setProfile(student);
-    localStorage.setItem('cshub_current_user_id', student.id);
-    setIsLoading(false);
-    return student;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/telegram-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: String(code).trim() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Verification code invalid or expired');
+      }
+
+      localStorage.setItem('cshub_token', data.token);
+      localStorage.setItem('cshub_current_user_id', data.user.id);
+      setUser(data.user);
+      setProfile(data.user);
+      setIsLoading(false);
+      return data.user;
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    }
   };
 
   /**
@@ -144,101 +156,44 @@ export function AuthProvider({ children }) {
    */
   const adminLogin = async (email, password) => {
     setIsLoading(true);
-    if (API_BASE_URL) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/admin-login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Admin credentials incorrect');
-        }
-
-        localStorage.setItem('cshub_token', data.token);
-        localStorage.setItem('cshub_current_user_id', data.user.id);
-        setUser(data.user);
-        setProfile(data.user);
-        setIsLoading(false);
-        return data.user;
-      } catch (err) {
-        setIsLoading(false);
-        throw err;
-      }
+    if (!API_BASE_URL) {
+      setIsLoading(false);
+      throw new Error('API server is not configured.');
     }
 
-    // Local fallback for admin login
-    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const adminUser = users.find((u) => u.role === 'admin' || u.role === 'super_admin') || users[0];
-    setUser({ id: adminUser.id, email: adminUser.email });
-    setProfile(adminUser);
-    localStorage.setItem('cshub_current_user_id', adminUser.id);
-    setIsLoading(false);
-    return adminUser;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Admin credentials incorrect');
+      }
+
+      localStorage.setItem('cshub_token', data.token);
+      localStorage.setItem('cshub_current_user_id', data.user.id);
+      setUser(data.user);
+      setProfile(data.user);
+      setIsLoading(false);
+      return data.user;
+    } catch (err) {
+      setIsLoading(false);
+      throw err;
+    }
   };
 
-  // General login wrapper
   const login = async (email, password) => {
     return adminLogin(email, password);
   };
 
-  // Register handler
-  const register = async (email, password, displayName) => {
-    setIsLoading(true);
-    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const newUser = {
-      id: `user-${Date.now()}`,
-      email,
-      display_name: displayName || email.split('@')[0],
-      role: 'student',
-      status: 'active',
-      avatar_url: '',
-      created_at: new Date().toISOString(),
-    };
-    localStorage.setItem('cshub_users', JSON.stringify([...users, newUser]));
-    localStorage.setItem('cshub_current_user_id', newUser.id);
-    setUser({ id: newUser.id, email: newUser.email });
-    setProfile(newUser);
-    setIsLoading(false);
-    return newUser;
-  };
-
-  // Logout handler
   const logout = async () => {
     localStorage.removeItem('cshub_token');
     localStorage.removeItem('cshub_current_user_id');
     setUser(null);
     setProfile(null);
-  };
-
-  // Password reset request
-  const resetPassword = async (email) => {
-    return true;
-  };
-
-  // Update profile
-  const updateProfile = async (updates) => {
-    if (profile) {
-      const updated = { ...profile, ...updates };
-      setProfile(updated);
-      const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-      const newUsers = users.map((u) => (u.id === profile.id ? updated : u));
-      localStorage.setItem('cshub_users', JSON.stringify(newUsers));
-      return updated;
-    }
-  };
-
-  // Developer quick-switch for previewing roles (Admin vs Student)
-  const switchMockUser = (userId) => {
-    const users = JSON.parse(localStorage.getItem('cshub_users') || JSON.stringify(INITIAL_USERS));
-    const target = users.find((u) => u.id === userId);
-    if (target) {
-      localStorage.setItem('cshub_current_user_id', target.id);
-      setUser({ id: target.id, email: target.email });
-      setProfile(target);
-    }
   };
 
   const isAdmin = Boolean(profile && (profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'moderator'));
@@ -253,11 +208,7 @@ export function AuthProvider({ children }) {
         login,
         adminLogin,
         loginWithTelegramCode,
-        register,
         logout,
-        resetPassword,
-        updateProfile,
-        switchMockUser,
         isConfigured: Boolean(API_BASE_URL),
         telegramUnregistered,
         isTelegramWebApp: typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData),
@@ -271,20 +222,15 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    console.warn('Warning: useAuth called outside AuthProvider. Using safe defaults.');
     return {
-      user: { id: 'guest-student', full_name: 'Student' },
-      profile: { id: 'guest-student', full_name: 'Student', role: 'student' },
+      user: null,
+      profile: null,
       isAdmin: false,
       isLoading: false,
       login: async () => {},
       adminLogin: async () => {},
       loginWithTelegramCode: async () => {},
-      register: async () => {},
       logout: () => {},
-      resetPassword: async () => {},
-      updateProfile: async () => {},
-      switchMockUser: () => {},
       isConfigured: false,
       telegramUnregistered: false,
       isTelegramWebApp: typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData),

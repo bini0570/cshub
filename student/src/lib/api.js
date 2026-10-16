@@ -409,15 +409,15 @@ export async function submitReport({ content_id, user_id, reason, details }) {
 }
 
 /**
- * Submit exam or quiz attempt
+ * Submit exam or quiz attempt for server-side grading (Problem 17)
  */
-export async function submitExamAttempt(attemptData) {
+export async function submitExamAttempt({ course_name, answers, time_taken_seconds }) {
   if (API_BASE_URL) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/exams/submit`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(attemptData),
+        body: JSON.stringify({ course_name, answers, time_taken_seconds }),
       });
       if (res.ok) return await res.json();
     } catch (err) {
@@ -428,7 +428,9 @@ export async function submitExamAttempt(attemptData) {
   // Local fallback
   const localAttempts = getLocalItem('exam_attempts', []);
   const newAttempt = {
-    ...attemptData,
+    course_name,
+    answers_breakdown: answers,
+    time_taken_seconds: time_taken_seconds || 1,
     id: `local-att-${Date.now()}`,
     created_at: new Date().toISOString(),
   };

@@ -175,27 +175,12 @@ export function AuthProvider({ children }) {
       }
     }
 
-    // Local credential verification fallback
-    const validEmails = ['admin@cshub.edu', 'admin@cshub.dev', 'admin', 'administrator'];
-    if (validEmails.includes(cleanEmail) && password === 'Admin@123') {
-      const adminUser = {
-        id: 'admin-primary',
-        full_name: 'CS Hub Administrator',
-        display_name: 'CS Hub Administrator',
-        email: cleanEmail.includes('@') ? cleanEmail : 'admin@cshub.edu',
-        role: 'super_admin',
-        created_at: new Date().toISOString(),
-      };
-      localStorage.setItem('cshub_token', 'local_admin_jwt_' + Date.now());
-      localStorage.setItem('cshub_current_user_id', adminUser.id);
-      setUser(adminUser);
-      setProfile(adminUser);
+    if (!API_BASE_URL) {
       setIsLoading(false);
-      return adminUser;
-    } else {
-      setIsLoading(false);
-      throw new Error('Invalid administrator credentials. (Default: admin@cshub.edu / Admin@123)');
+      throw new Error('API server is not configured.');
     }
+    setIsLoading(false);
+    throw new Error('Invalid administrator credentials.');
   };
 
   // General login wrapper

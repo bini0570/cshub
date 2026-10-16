@@ -2,6 +2,7 @@ import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -27,18 +28,24 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat-tools', slug: 'dev-tools', name: 'Developer Tools & CLI', description: 'Production IDE configs, Git workflows, Docker compose templates', icon: 'Wrench', color: 'cyan', display_order: 6 },
 ];
 
+// Secure admin password setup (Problem 1)
+const adminPasswordHash = process.env.ADMIN_PASSWORD
+  ? bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12)
+  : '$2a$12$K8yR2u/d27P4G38D5fV8Ue4iZg6kH8jL0mN2pQ4rS6tU8vW0xY2a6';
+
 const DEFAULT_ADMIN = {
   id: 'admin-primary',
   student_id: 'ADMIN-001',
   full_name: 'CS Hub Administrator',
   role: 'super_admin',
-  email: 'admin@cshub.edu',
-  password_hash: '$2a$10$wKxN74jB4J5n8fP75dG7sOBvLwD9UqTshj2PjI1Pj5kE4w4lZ7Zje', // Admin@123
+  status: 'active',
+  email: process.env.ADMIN_EMAIL || 'admin@cshub.edu',
+  password_hash: adminPasswordHash,
   created_at: new Date().toISOString(),
 };
 
 // ==============================================================================
-// LOCAL JSON STORE (Fallback when Postgres is unreachable or on Railway Trial)
+// LOCAL JSON STORE (Development Fallback Only - Problem 33, 34, 35)
 // ==============================================================================
 function getLocalStore() {
   try {
@@ -79,7 +86,7 @@ function saveLocalStore(data) {
 }
 
 // ==============================================================================
-// DATABASE INITIALIZATION
+// DATABASE INITIALIZATION (Problem 33: Fail fast in production on DB errors)
 // ==============================================================================
 export async function initDatabase() {
   if (connectionString && !connectionString.includes('postgres.railway.internal')) {
@@ -99,11 +106,17 @@ export async function initDatabase() {
         return;
       }
     } catch (pgErr) {
-      console.warn(`⚠️ PostgreSQL connection failed (${pgErr.message}). Switching to persistent local storage fallback.`);
+      console.warn(`⚠️ PostgreSQL connection failed (${pgErr.message}).`);
+      if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_LOCAL_FALLBACK) {
+        throw new Error(`CRITICAL: PostgreSQL connection failed in production (${pgErr.message}). Failing fast.`);
+      }
       isPostgresAvailable = false;
     }
   } else {
-    console.log('ℹ️ No external PostgreSQL URL detected (or internal DNS unresolvable). Using built-in persistent storage.');
+    if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_LOCAL_FALLBACK) {
+      throw new Error('CRITICAL: DATABASE_URL is not configured in production mode. Ephemeral local storage is disabled.');
+    }
+    console.log('ℹ️ No external PostgreSQL URL detected. Using development persistent storage.');
   }
 
   // Ensure local store is initialized
@@ -123,11 +136,14 @@ async function runPostgresMigrations() {
       department VARCHAR(100),
       academic_year INT,
       role VARCHAR(30) DEFAULT 'student',
+      status VARCHAR(30) DEFAULT 'active',
       email VARCHAR(150) UNIQUE,
       password_hash VARCHAR(255),
       avatar_url TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active';
 
     CREATE TABLE IF NOT EXISTS telegram_auth_codes (
       code VARCHAR(10) PRIMARY KEY,
@@ -235,12 +251,16 @@ async function runPostgresMigrations() {
     );
   }
 
-  // Seed default admin
-  await pool.query(
-    `INSERT INTO users (id, student_id, full_name, role, email, password_hash)
-     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
-    [DEFAULT_ADMIN.id, DEFAULT_ADMIN.student_id, DEFAULT_ADMIN.full_name, DEFAULT_ADMIN.role, DEFAULT_ADMIN.email, DEFAULT_ADMIN.password_hash]
-  );
+  // Seed initial admin if none exists (Problem 1)
+  const existingAdmin = await pool.query(`SELECT id FROM users WHERE role = 'super_admin' LIMIT 1`);
+  if (existingAdmin.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO users (id, student_id, full_name, role, status, email, password_hash)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6) ON CONFLICT (id) DO NOTHING`,
+      [DEFAULT_ADMIN.id, DEFAULT_ADMIN.student_id, DEFAULT_ADMIN.full_name, DEFAULT_ADMIN.role, DEFAULT_ADMIN.email, DEFAULT_ADMIN.password_hash]
+    );
+    console.log('ℹ️ Initial super administrator account provisioned.');
+  }
 }
 
 // ==============================================================================
@@ -251,6 +271,9 @@ export async function query(text, params = []) {
     try {
       return await pool.query(text, params);
     } catch (err) {
+      if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_LOCAL_FALLBACK) {
+        throw err;
+      }
       console.warn('Postgres query failed, falling back to local store:', err.message);
     }
   }
@@ -260,45 +283,28 @@ export async function query(text, params = []) {
   const trimmed = text.trim();
 
   // 1. SELECT * FROM users WHERE telegram_id = $1
-  if (trimmed.toLowerCase().includes('from users where telegram_id = $1')) {
-    const tId = Number(params[0]);
-    const found = store.users.filter((u) => Number(u.telegram_id) === tId);
+  if (trimmed.includes('FROM users WHERE telegram_id = $1')) {
+    const tid = Number(params[0]);
+    const found = store.users.filter((u) => Number(u.telegram_id) === tid);
     return { rows: found };
   }
 
-  // 2. INSERT INTO users ... ON CONFLICT (telegram_id)
-  if (trimmed.toLowerCase().startsWith('insert into users')) {
-    const tId = Number(params[1]);
-    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === tId);
-    let userRecord = existingIndex >= 0 ? { ...store.users[existingIndex] } : {
-      id: params[0] || `student-${tId}`,
-      telegram_id: tId,
-      role: 'student',
+  // 2. INSERT INTO users ... ON CONFLICT
+  if (trimmed.startsWith('INSERT INTO users')) {
+    const [id, telegram_id, telegram_username, full_name, phone, role] = params;
+    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === Number(telegram_id));
+    const userRecord = {
+      id: id || `user-${Date.now()}`,
+      telegram_id: Number(telegram_id),
+      telegram_username: telegram_username || null,
+      full_name: full_name || 'Student',
+      phone: phone || null,
+      role: role || 'student',
+      status: 'active',
       created_at: new Date().toISOString(),
     };
-
-    if (trimmed.includes('phone') && params.length >= 5) {
-      // (id, telegram_id, telegram_username, full_name, phone, role)
-      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
-      userRecord.full_name = params[3] || userRecord.full_name || '';
-      userRecord.phone = params[4] || userRecord.phone || '';
-      if (params[5]) userRecord.role = params[5];
-    } else if (params.length === 4) {
-      // (id, telegram_id, telegram_username, full_name, role)
-      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
-      userRecord.full_name = params[3] || userRecord.full_name || '';
-      userRecord.role = 'student';
-    } else {
-      userRecord.telegram_username = params[2] || userRecord.telegram_username || null;
-      userRecord.student_id = params[3] || userRecord.student_id || '';
-      userRecord.full_name = params[4] || userRecord.full_name || '';
-      userRecord.department = params[5] || userRecord.department || '';
-      userRecord.academic_year = Number(params[6]) || userRecord.academic_year || 1;
-      if (params[7]) userRecord.role = params[7];
-    }
-
     if (existingIndex >= 0) {
-      store.users[existingIndex] = userRecord;
+      store.users[existingIndex] = { ...store.users[existingIndex], ...userRecord };
     } else {
       store.users.push(userRecord);
     }
@@ -316,17 +322,20 @@ export async function query(text, params = []) {
     return { rows: found };
   }
 
-  // 4. UPDATE telegram_auth_codes SET used = TRUE
+  // 4. UPDATE telegram_auth_codes SET used = TRUE (Atomic check - Problem 9)
   if (trimmed.includes('UPDATE telegram_auth_codes SET used = TRUE')) {
-    const codeOrTid = params[0];
+    const code = String(params[0]).trim();
+    const now = new Date();
+    let updatedRecord = null;
     store.telegram_auth_codes = store.telegram_auth_codes.map((c) => {
-      if (c.code === String(codeOrTid) || Number(c.telegram_id) === Number(codeOrTid)) {
-        return { ...c, used: true };
+      if (c.code === code && !c.used && new Date(c.expires_at) > now) {
+        updatedRecord = { ...c, used: true };
+        return updatedRecord;
       }
       return c;
     });
     saveLocalStore(store);
-    return { rows: [] };
+    return { rows: updatedRecord ? [updatedRecord] : [] };
   }
 
   // 5. INSERT INTO telegram_auth_codes
@@ -358,12 +367,49 @@ export async function query(text, params = []) {
     return { rows: found };
   }
 
-  // 8. SELECT * FROM categories
+  // 8. UPDATE users SET role = $1
+  if (trimmed.includes('UPDATE users SET role = $1')) {
+    const [role, id] = params;
+    let updatedUser = null;
+    store.users = store.users.map((u) => {
+      if (u.id === id) {
+        updatedUser = { ...u, role };
+        return updatedUser;
+      }
+      return u;
+    });
+    saveLocalStore(store);
+    return { rows: updatedUser ? [updatedUser] : [] };
+  }
+
+  // 9. UPDATE users SET status = $1
+  if (trimmed.includes('UPDATE users SET status = $1')) {
+    const [status, id] = params;
+    let updatedUser = null;
+    store.users = store.users.map((u) => {
+      if (u.id === id) {
+        updatedUser = { ...u, status };
+        return updatedUser;
+      }
+      return u;
+    });
+    saveLocalStore(store);
+    return { rows: updatedUser ? [updatedUser] : [] };
+  }
+
+  // 10. COUNT super_admin
+  if (trimmed.includes("role = 'super_admin'")) {
+    const excludeId = params[0];
+    const supers = (store.users || []).filter((u) => u.role === 'super_admin' && u.id !== excludeId);
+    return { rows: [{ count: supers.length }] };
+  }
+
+  // 11. SELECT * FROM categories
   if (trimmed.includes('FROM categories')) {
     return { rows: store.categories || DEFAULT_CATEGORIES };
   }
 
-  // 9. SELECT * FROM content
+  // 12. SELECT * FROM content
   if (trimmed.includes('FROM content')) {
     let list = store.content || [];
     if (params.length > 0 && trimmed.includes('c.slug = $1')) {
@@ -372,16 +418,28 @@ export async function query(text, params = []) {
     return { rows: list };
   }
 
-  // 10. SELECT * FROM submissions
+  // 13. DELETE FROM content WHERE id = $1
+  if (trimmed.startsWith('DELETE FROM content WHERE id = $1')) {
+    const id = params[0];
+    const deletedItem = (store.content || []).find((c) => c.id === id);
+    store.content = (store.content || []).filter((c) => c.id !== id);
+    saveLocalStore(store);
+    return { rows: deletedItem ? [deletedItem] : [] };
+  }
+
+  // 14. SELECT * FROM submissions
   if (trimmed.includes('FROM submissions')) {
     let list = store.submissions || [];
-    if (params.length > 0 && trimmed.includes('submitter_id = $1')) {
+    if (trimmed.includes('submitter_id = $1')) {
       list = list.filter((s) => s.submitter_id === params[0]);
+    }
+    if (trimmed.includes('WHERE id = $1')) {
+      list = list.filter((s) => s.id === params[0]);
     }
     return { rows: list };
   }
 
-  // 11. INSERT INTO submissions
+  // 15. INSERT INTO submissions
   if (trimmed.startsWith('INSERT INTO submissions')) {
     const [id, submitter_id, submitter_name, submitter_telegram, title, content_type, description, category_id, external_url, file_url] = params;
     const newSub = {
@@ -403,17 +461,50 @@ export async function query(text, params = []) {
     return { rows: [newSub] };
   }
 
-  // 12. SELECT * FROM users
+  // 16. UPDATE submissions SET
+  if (trimmed.startsWith('UPDATE submissions SET')) {
+    const [status, review_note, reviewer_id, id] = params;
+    let updatedSub = null;
+    store.submissions = (store.submissions || []).map((s) => {
+      if (s.id === id) {
+        updatedSub = { ...s, status, review_note, reviewer_id, reviewed_at: new Date().toISOString() };
+        return updatedSub;
+      }
+      return s;
+    });
+    saveLocalStore(store);
+    return { rows: updatedSub ? [updatedSub] : [] };
+  }
+
+  // 17. SELECT * FROM users
   if (trimmed.includes('FROM users')) {
     return { rows: store.users || [] };
   }
 
-  // 13. SELECT * FROM audit_logs
+  // 18. SELECT * FROM audit_logs
   if (trimmed.includes('FROM audit_logs')) {
     return { rows: store.audit_logs || [] };
   }
 
-  // 14. INSERT INTO exam_attempts
+  // 19. INSERT INTO audit_logs
+  if (trimmed.startsWith('INSERT INTO audit_logs')) {
+    const [id, admin_name, action, target_type, target_id, details] = params;
+    const logItem = {
+      id: id || `log-${Date.now()}`,
+      admin_name,
+      action,
+      target_type,
+      target_id,
+      details,
+      created_at: new Date().toISOString(),
+    };
+    store.audit_logs = store.audit_logs || [];
+    store.audit_logs.push(logItem);
+    saveLocalStore(store);
+    return { rows: [logItem] };
+  }
+
+  // 20. INSERT INTO exam_attempts
   if (trimmed.toLowerCase().startsWith('insert into exam_attempts')) {
     const [id, user_id, student_name, course_name, total_questions, score, percentage, time_taken_seconds, answers_breakdown] = params;
     const attempt = {
@@ -434,7 +525,7 @@ export async function query(text, params = []) {
     return { rows: [attempt] };
   }
 
-  // 15. SELECT ... FROM exam_attempts
+  // 21. SELECT ... FROM exam_attempts
   if (trimmed.toLowerCase().includes('from exam_attempts')) {
     let list = store.exam_attempts || [];
     if (trimmed.includes('LOWER(course_name) = LOWER($1)')) {
@@ -447,11 +538,10 @@ export async function query(text, params = []) {
       const uId = String(params[0]);
       list = list.filter((a) => a.user_id === uId);
       list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      return { rows: list.slice(0, 20) };
+      return { rows: list.slice(0, 25) };
     }
     return { rows: list };
   }
 
-  // Default fallback empty result
   return { rows: [] };
 }
