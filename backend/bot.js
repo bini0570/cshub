@@ -193,16 +193,20 @@ export function startTelegramBot() {
         }
       }
 
-      // Insert or update student record in DB
-      await query(
-        `INSERT INTO users (id, telegram_id, telegram_username, full_name, phone, role)
-         VALUES ($1, $2, $3, $4, $5, 'student')
-         ON CONFLICT (telegram_id) DO UPDATE SET
-           full_name = EXCLUDED.full_name,
-           telegram_username = EXCLUDED.telegram_username,
-           phone = EXCLUDED.phone`,
-        [userId, Number(telegramId), username, fullName, phone]
-      );
+      // Insert or update student record in DB safely
+      const existingUser = await query(`SELECT id FROM users WHERE telegram_id = $1`, [Number(telegramId)]);
+      if (existingUser.rows && existingUser.rows.length > 0) {
+        await query(
+          `UPDATE users SET full_name = $1, telegram_username = $2, phone = $3, status = 'active' WHERE telegram_id = $4`,
+          [fullName, username, phone, Number(telegramId)]
+        );
+      } else {
+        await query(
+          `INSERT INTO users (id, telegram_id, telegram_username, full_name, phone, role, status)
+           VALUES ($1, $2, $3, $4, $5, 'student', 'active')`,
+          [userId, Number(telegramId), username, fullName, phone]
+        );
+      }
 
       // Step 1: Dismiss contact-sharing keyboard
       await bot.sendMessage(

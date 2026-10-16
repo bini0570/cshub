@@ -282,18 +282,36 @@ router.post('/telegram-webapp-auth', async (req, res) => {
   }
 
   try {
-    const userRes = await query(`SELECT * FROM users WHERE telegram_id = $1`, [Number(telegramUser.id)]);
-    
-    // Enforcement of bot registration (Problem 6):
-    // Students must register and share their phone number via the bot before accessing the platform
+    let user;
     if (userRes.rows.length === 0) {
-      return res.status(403).json({
-        registered: false,
-        error: 'Registration required. Please register with @Boditibingobot by sharing your contact first.',
-      });
+      const newUserId = `student-${telegramUser.id}`;
+      const fullName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ') || telegramUser.username || 'Student';
+      const username = telegramUser.username || null;
+      const avatarUrl = telegramUser.photo_url || null;
+
+      try {
+        await query(
+          `INSERT INTO users (id, telegram_id, telegram_username, full_name, avatar_url, role, status)
+           VALUES ($1, $2, $3, $4, $5, 'student', 'active')`,
+          [newUserId, Number(telegramUser.id), username, fullName, avatarUrl]
+        );
+      } catch (insertErr) {
+        console.warn('Auto-provision insert note:', insertErr.message);
+      }
+
+      user = {
+        id: newUserId,
+        telegram_id: Number(telegramUser.id),
+        telegram_username: username,
+        full_name: fullName,
+        avatar_url: avatarUrl,
+        role: 'student',
+        status: 'active',
+      };
+    } else {
+      user = userRes.rows[0];
     }
 
-    const user = userRes.rows[0];
     if (user.status === 'banned' || user.status === 'suspended') {
       return res.status(403).json({ error: 'Account has been suspended' });
     }

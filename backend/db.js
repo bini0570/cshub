@@ -139,7 +139,18 @@ async function runPostgresMigrations() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(150);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'student';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS academic_year INT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS student_id VARCHAR(50);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 
     CREATE TABLE IF NOT EXISTS telegram_auth_codes (
       code VARCHAR(10) PRIMARY KEY,
@@ -281,20 +292,51 @@ export async function query(text, params = []) {
   // 1. SELECT * FROM users WHERE telegram_id = $1
   if (trimmed.includes('FROM users WHERE telegram_id = $1')) {
     const tid = Number(params[0]);
-    const found = store.users.filter((u) => Number(u.telegram_id) === tid);
+    const found = (store.users || []).filter((u) => Number(u.telegram_id) === tid);
     return { rows: found };
   }
 
-  // 2. INSERT INTO users ... ON CONFLICT
+  // 1b. SELECT id, telegram_id FROM users WHERE phone = $1
+  if (trimmed.includes('FROM users WHERE phone = $1')) {
+    const phone = String(params[0] || '').trim();
+    const excludeTid = params[1] ? Number(params[1]) : null;
+    const found = (store.users || []).filter((u) => u.phone === phone && (!excludeTid || Number(u.telegram_id) !== excludeTid));
+    return { rows: found };
+  }
+
+  // 1c. UPDATE users ... WHERE telegram_id = $X
+  if (trimmed.startsWith('UPDATE users') && trimmed.includes('WHERE telegram_id =')) {
+    const tid = Number(params[params.length - 1]);
+    let updatedUser = null;
+    store.users = (store.users || []).map((u) => {
+      if (Number(u.telegram_id) === tid) {
+        updatedUser = {
+          ...u,
+          full_name: params[0] || u.full_name,
+          telegram_username: params[1] !== undefined ? params[1] : u.telegram_username,
+          phone: params[2] !== undefined ? params[2] : u.phone,
+          status: 'active',
+        };
+        return updatedUser;
+      }
+      return u;
+    });
+    saveLocalStore(store);
+    return { rows: updatedUser ? [updatedUser] : [] };
+  }
+
+  // 2. INSERT INTO users
   if (trimmed.startsWith('INSERT INTO users')) {
-    const [id, telegram_id, telegram_username, full_name, phone, role] = params;
-    const existingIndex = store.users.findIndex((u) => Number(u.telegram_id) === Number(telegram_id));
+    const [id, telegram_id, telegram_username, full_name, phone_or_avatar, role] = params;
+    const isAvatar = phone_or_avatar && (phone_or_avatar.startsWith('http') || phone_or_avatar.startsWith('/'));
+    const existingIndex = (store.users || []).findIndex((u) => Number(u.telegram_id) === Number(telegram_id));
     const userRecord = {
       id: id || `user-${Date.now()}`,
       telegram_id: Number(telegram_id),
       telegram_username: telegram_username || null,
       full_name: full_name || 'Student',
-      phone: phone || null,
+      phone: !isAvatar ? (phone_or_avatar || null) : null,
+      avatar_url: isAvatar ? phone_or_avatar : null,
       role: role || 'student',
       status: 'active',
       created_at: new Date().toISOString(),
