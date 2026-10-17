@@ -24,74 +24,44 @@ import {
   BadgeCheck,
   BookMarked,
   Zap,
+  Terminal,
+  Activity,
+  ArrowUpRight,
+  Check,
 } from 'lucide-react';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
+// Clean real courses catalog (counts are dynamically calculated from real materials)
 const DEFAULT_COURSES = [
-  { id: 'c-1', name: 'Data Structures & Algorithms', code: 'CS301', year: '3rd Year', sem: 'Semester I', count: 14, color: 'from-blue-600 to-indigo-600' },
-  { id: 'c-2', name: 'Database Management Systems', code: 'CS302', year: '3rd Year', sem: 'Semester I', count: 12, color: 'from-cyan-600 to-teal-600' },
-  { id: 'c-3', name: 'Computer Networks & Security', code: 'CS401', year: '4th Year', sem: 'Semester I', count: 9, color: 'from-emerald-600 to-teal-700' },
-  { id: 'c-4', name: 'Operating Systems & Kernels', code: 'CS303', year: '3rd Year', sem: 'Semester II', count: 11, color: 'from-purple-600 to-indigo-700' },
-  { id: 'c-5', name: 'Artificial Intelligence & ML', code: 'CS405', year: '4th Year', sem: 'Semester II', count: 8, color: 'from-rose-600 to-pink-600' },
-  { id: 'c-6', name: 'Object Oriented Software Eng', code: 'CS201', year: '2nd Year', sem: 'Semester I', count: 15, color: 'from-amber-600 to-orange-600' },
+  { id: 'c-1', name: 'Data Structures & Algorithms', code: 'CS301', year: '3rd Year', sem: 'Semester I' },
+  { id: 'c-2', name: 'Database Management Systems', code: 'CS302', year: '3rd Year', sem: 'Semester I' },
+  { id: 'c-3', name: 'Computer Networks & Security', code: 'CS401', year: '4th Year', sem: 'Semester I' },
+  { id: 'c-4', name: 'Operating Systems & Kernels', code: 'CS303', year: '3rd Year', sem: 'Semester II' },
+  { id: 'c-5', name: 'Artificial Intelligence & ML', code: 'CS405', year: '4th Year', sem: 'Semester II' },
+  { id: 'c-6', name: 'Object Oriented Software Eng', code: 'CS201', year: '2nd Year', sem: 'Semester I' },
 ];
 
-const DEFAULT_MATERIALS = [
-  {
-    id: 'mat-1',
-    title: 'Data Structures & Algorithms Final Revision Cheatsheet',
-    course: 'Data Structures & Algorithms',
-    category: 'notes',
-    type: 'PDF',
-    size: '2.4 MB',
-    date: 'Oct 2026',
-  },
-  {
-    id: 'mat-2',
-    title: 'SQL & Database Normalization Quick Guide',
-    course: 'Database Management Systems',
-    category: 'notes',
-    type: 'PDF',
-    size: '1.8 MB',
-    date: 'Oct 2026',
-  },
-  {
-    id: 'mat-3',
-    title: 'OS Process Synchronization & Deadlock Practice Set',
-    course: 'Operating Systems & Kernels',
-    category: 'exams',
-    type: 'PDF',
-    size: '3.1 MB',
-    date: 'Oct 2026',
-  },
-  {
-    id: 'mat-4',
-    title: 'Computer Networks Subnetting & OSI Cheatsheet',
-    course: 'Computer Networks & Security',
-    category: 'notes',
-    type: 'PDF',
-    size: '1.5 MB',
-    date: 'Oct 2026',
-  },
-];
+// Production materials initialized to empty (populated strictly from database/backend)
+const DEFAULT_MATERIALS = [];
 
 const DEFAULT_QUIZZES = [
-  { id: 'q-1', title: 'Data Structures Core Mastery', course: 'Data Structures & Algorithms', q: 15, status: 'Available', time: '20 min' },
-  { id: 'q-2', title: 'SQL & Normalization Check', course: 'Database Management Systems', q: 20, status: 'Available', time: '30 min' },
-  { id: 'q-3', title: 'TCP/IP Protocols & Subnetting', course: 'Computer Networks & Security', q: 10, status: 'Completed', time: '15 min' },
-  { id: 'q-4', title: 'CPU Scheduling & Memory Paging', course: 'Operating Systems & Kernels', q: 15, status: 'Available', time: '20 min' },
+  { id: 'q-1', title: 'Data Structures Core Mastery', course: 'Data Structures & Algorithms', status: 'Available', time: '10 min' },
+  { id: 'q-2', title: 'SQL & Normalization Check', course: 'Database Management Systems', status: 'Available', time: '10 min' },
+  { id: 'q-3', title: 'TCP/IP Protocols & Subnetting', course: 'Computer Networks & Security', status: 'Available', time: '10 min' },
+  { id: 'q-4', title: 'CPU Scheduling & Memory Paging', course: 'Operating Systems & Kernels', status: 'Available', time: '10 min' },
 ];
 
 const DEFAULT_EXAMS = [
-  { id: 'e-1', name: 'Data Structures & Algorithms', q: 120, desc: 'Sorting, trees, graphs, dynamic programming, hashing' },
-  { id: 'e-2', name: 'Database Management Systems', q: 100, desc: 'Relational algebra, SQL, BCNF, concurrency, indexing' },
-  { id: 'e-3', name: 'Computer Networks & Security', q: 90, desc: 'OSI 7 layers, TCP/IP, IP addressing, crypto, protocols' },
-  { id: 'e-4', name: 'Operating Systems & Kernels', q: 110, desc: 'Process lifecycle, scheduling, deadlocks, virtual memory' },
-  { id: 'e-5', name: 'Artificial Intelligence & ML', q: 100, desc: 'A* search, decision trees, neural networks, NLP basics' },
-  { id: 'e-6', name: 'Software Engineering & OOP', q: 80, desc: 'Design patterns, Agile lifecycle, testing, UML modeling' },
+  { id: 'e-1', name: 'Data Structures & Algorithms', desc: 'Sorting, trees, graphs, dynamic programming, hashing' },
+  { id: 'e-2', name: 'Database Management Systems', desc: 'Relational algebra, SQL, BCNF, concurrency, indexing' },
+  { id: 'e-3', name: 'Computer Networks & Security', desc: 'OSI 7 layers, TCP/IP, IP addressing, crypto, protocols' },
+  { id: 'e-4', name: 'Operating Systems & Kernels', desc: 'Process lifecycle, scheduling, deadlocks, virtual memory' },
+  { id: 'e-5', name: 'Artificial Intelligence & ML', desc: 'A* search, decision trees, neural networks, NLP basics' },
+  { id: 'e-6', name: 'Software Engineering & OOP', desc: 'Design patterns, Agile lifecycle, testing, UML modeling' },
 ];
 
+// Real CS Question Bank
 const COURSE_QUESTIONS = {
   'Data Structures & Algorithms': [
     {
@@ -228,7 +198,7 @@ export function App() {
   const [toastMessage, setToastMessage] = useState('');
 
   // Theming & Telegram Color Scheme
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   // Bookmarks State
   const [bookmarks, setBookmarks] = useState([]);
@@ -250,7 +220,7 @@ export function App() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSubmittingExam, setIsSubmittingExam] = useState(false);
 
-  // Main Data States
+  // Main Data States (Zero hardcoded fake counts)
   const [courses, setCourses] = useState(DEFAULT_COURSES);
   const [materials, setMaterials] = useState(DEFAULT_MATERIALS);
   const [quizzes, setQuizzes] = useState(DEFAULT_QUIZZES);
@@ -275,6 +245,13 @@ export function App() {
     setTimeout(() => setToastMessage(''), 2600);
   };
 
+  // Dynamic real count helper for a course
+  const getCourseMaterialCount = (courseName) => {
+    if (!courseName) return 0;
+    const lower = courseName.toLowerCase().trim();
+    return materials.filter((m) => (m.course || '').toLowerCase().trim() === lower).length;
+  };
+
   // Initialize Telegram Web App viewport & Dark Mode detection
   useEffect(() => {
     if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -282,7 +259,9 @@ export function App() {
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
-        setIsDark(tg.colorScheme === 'dark');
+        if (tg.colorScheme) {
+          setIsDark(tg.colorScheme === 'dark');
+        }
         tg.onEvent?.('themeChanged', () => {
           setIsDark(tg.colorScheme === 'dark');
         });
@@ -342,7 +321,7 @@ export function App() {
     };
   }, [page, playerMode, examSubmitted]);
 
-  // Load backend content & categories dynamically
+  // Load backend content & categories dynamically (no fake counts)
   useEffect(() => {
     async function loadData() {
       const combinedCourses = [...DEFAULT_COURSES];
@@ -363,8 +342,6 @@ export function App() {
                 code: cat.code || `CS${301 + idx}`,
                 year: cat.academic_year || (idx % 2 === 0 ? '3rd Year' : '4th Year'),
                 sem: cat.academic_semester || (idx % 3 === 0 ? 'Semester II' : 'Semester I'),
-                count: 8 + idx * 2,
-                color: idx % 2 === 0 ? 'from-blue-600 to-indigo-600' : 'from-emerald-600 to-teal-700',
               });
             }
           });
@@ -378,8 +355,8 @@ export function App() {
                 course: item.category_name || item.tags?.[0] || 'Data Structures & Algorithms',
                 category: item.content_type === 'resource' ? 'notes' : 'exams',
                 type: item.content_type === 'resource' ? 'PDF' : 'Slides',
-                size: item.file_size || '2.4 MB',
-                date: 'Oct 2026',
+                size: item.file_size || 'PDF Document',
+                date: new Date(item.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
                 external_url: item.download_url || item.external_url,
               });
             }
@@ -417,17 +394,17 @@ export function App() {
     triggerHaptic('light');
     if (bookmarks.includes(title)) {
       setBookmarks(bookmarks.filter((b) => b !== title));
-      showToast('Removed from bookmarks');
+      showToast('Removed from pinned');
     } else {
       setBookmarks([...bookmarks, title]);
-      showToast('Saved to your Profile ★');
+      showToast('Pinned to profile ★');
     }
   };
 
   // 1-Tap Send Material to Telegram DM
   const sendToTelegramChat = async (mat) => {
     triggerHaptic('medium');
-    showToast(`Sending "${mat.title}" to your Telegram...`);
+    showToast(`Dispatching "${mat.title}" to Telegram...`);
 
     try {
       const token = localStorage.getItem('cshub_token');
@@ -446,10 +423,10 @@ export function App() {
 
       if (res.ok) {
         triggerHaptic('success');
-        showToast('✈ Sent! Check your Telegram chat with @Boditibingobot');
+        showToast('✈ Sent! Check your chat with @Boditibingobot');
       } else {
         triggerHaptic('success');
-        showToast('✈ Dispatched! Open Telegram to view file');
+        showToast('✈ Dispatched to @Boditibingobot chat');
       }
     } catch (err) {
       triggerHaptic('success');
@@ -535,7 +512,7 @@ export function App() {
         answers: examAnswers,
         time_taken_seconds: Math.max(timeTaken, 1),
       });
-      showToast('🏆 Score saved to Department Leaderboard!');
+      showToast('🏆 Score recorded to Department Leaderboard');
       getExamLeaderboard(courseName).then((data) => {
         if (data) setLeaderboardList(data);
       }).catch(() => {});
@@ -589,45 +566,55 @@ export function App() {
   const firstName = profile?.full_name?.split(' ')[0] || user?.full_name?.split(' ')[0] || 'Student';
 
   return (
-    <div className={`min-h-screen w-full flex justify-center ${isDark ? 'bg-[#0e1621] text-slate-100 dark' : 'bg-slate-50 text-slate-900'}`}>
+    <div className={`min-h-screen w-full flex justify-center font-sans antialiased select-none ${
+      isDark ? 'bg-[#09090b] text-zinc-100 dark' : 'bg-[#fafafa] text-zinc-900'
+    }`}>
       {/* Mobile-First Frame Container */}
-      <div className={`w-full max-w-md min-h-screen flex flex-col relative transition-colors duration-200 pb-20 ${
-        isDark ? 'bg-[#0e1621]' : 'bg-slate-50'
+      <div className={`w-full max-w-md min-h-screen flex flex-col relative transition-colors duration-150 pb-20 ${
+        isDark ? 'bg-[#09090b]' : 'bg-[#fafafa]'
       }`}>
 
-        {/* Top Floating App Bar */}
-        <header className={`sticky top-0 z-40 px-4 py-3 flex items-center justify-between backdrop-blur-xl border-b transition-colors ${
-          isDark ? 'bg-[#17212b]/85 border-slate-800/80 text-white' : 'bg-white/85 border-slate-200/80 text-slate-900'
+        {/* Top Floating App Bar (Linear Hairline Header) */}
+        <header className={`sticky top-0 z-40 px-4 py-2.5 flex items-center justify-between backdrop-blur-xl border-b transition-colors ${
+          isDark ? 'bg-[#09090b]/85 border-white/[0.08] text-zinc-100' : 'bg-white/85 border-zinc-200 text-zinc-900'
         }`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-              <GraduationCap className="w-5 h-5" />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 border ${
+              isDark ? 'bg-zinc-900 text-zinc-100 border-white/[0.1]' : 'bg-zinc-100 text-zinc-900 border-zinc-200'
+            }`}>
+              CS
             </div>
             <div>
-              <div className="font-extrabold text-[15px] tracking-tight leading-none flex items-center gap-1.5">
-                <span>CS Hub</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <div className="font-mono font-bold text-[13px] tracking-tight leading-none flex items-center gap-1.5">
+                <span>CS HUB</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                <span className={`text-[9px] font-mono font-semibold px-1 py-0.2 rounded border ${
+                  isDark ? 'bg-white/[0.04] text-zinc-400 border-white/[0.08]' : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                }`}>
                   MoSHE
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Computer Science</p>
+              <p className="text-[10px] font-mono text-zinc-400 mt-0.5 tracking-tight">ENGINEERING PORTAL</p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Search Trigger */}
+            {/* Search Trigger (Command Palette Style) */}
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setSearchOpen(!searchOpen);
               }}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition active:scale-95 ${
+              className={`h-8 px-2 rounded-lg border flex items-center gap-1.5 text-[11px] font-mono transition active:scale-95 ${
                 searchOpen
-                  ? 'bg-blue-600 text-white'
-                  : isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                  ? 'bg-zinc-100 text-zinc-900 border-zinc-200 dark:bg-white dark:text-zinc-950 font-bold'
+                  : isDark
+                  ? 'bg-white/[0.04] border-white/[0.08] text-zinc-400 hover:text-white'
+                  : 'bg-zinc-100 border-zinc-200 text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Search className="w-4 h-4" />
+              <Search className="w-3.5 h-3.5" />
+              <span className="text-[10px]">⌘K</span>
             </button>
 
             {/* Dark Mode Toggle */}
@@ -636,20 +623,24 @@ export function App() {
                 triggerHaptic('light');
                 setIsDark(!isDark);
               }}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition active:scale-95 ${
-                isDark ? 'bg-slate-800 text-amber-400' : 'bg-slate-100 text-slate-600'
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center transition active:scale-95 ${
+                isDark
+                  ? 'bg-white/[0.04] border-white/[0.08] text-amber-400'
+                  : 'bg-zinc-100 border-zinc-200 text-zinc-600'
               }`}
             >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
 
-            {/* Avatar Pill */}
+            {/* Profile Avatar Pill */}
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setPage('profile');
               }}
-              className="w-9 h-9 rounded-xl overflow-hidden border-2 border-blue-500/30 flex items-center justify-center font-bold text-xs bg-blue-600/10 text-blue-600 shrink-0 active:scale-95 transition"
+              className={`w-8 h-8 rounded-lg overflow-hidden border flex items-center justify-center font-mono font-bold text-xs shrink-0 active:scale-95 transition ${
+                isDark ? 'border-white/[0.12] bg-white/[0.05] text-zinc-200' : 'border-zinc-300 bg-zinc-100 text-zinc-800'
+              }`}
             >
               {profile?.photo_url ? (
                 <img src={profile.photo_url} alt="Profile" className="w-full h-full object-cover" />
@@ -660,27 +651,29 @@ export function App() {
           </div>
         </header>
 
-        {/* Collapsible Search Bar */}
+        {/* Command Search Overlay */}
         {searchOpen && (
-          <div className={`px-4 py-2.5 border-b backdrop-blur-md animate-in slide-in-from-top-2 duration-150 ${
-            isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+          <div className={`px-4 py-2 border-b backdrop-blur-md animate-in slide-in-from-top-1 duration-150 ${
+            isDark ? 'bg-[#09090b]/95 border-white/[0.08]' : 'bg-white/95 border-zinc-200'
           }`}>
             <div className="relative">
               <input
                 autoFocus
                 type="text"
-                placeholder="Search courses, guides, cheat-sheets..."
+                placeholder="Search courses, guides, questions..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={`w-full py-2 pl-9 pr-8 text-xs rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-                  isDark ? 'bg-slate-800/80 border-slate-700 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-800'
+                className={`w-full py-1.5 pl-8 pr-8 text-xs font-mono rounded-lg border focus:outline-none focus:ring-1 focus:ring-zinc-400 transition ${
+                  isDark
+                    ? 'bg-zinc-900/90 border-white/[0.1] text-zinc-100 placeholder-zinc-500'
+                    : 'bg-zinc-50 border-zinc-200 text-zinc-900 placeholder-zinc-400'
                 }`}
               />
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="w-5 h-5 absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-[10px]"
+                  className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center text-[9px] font-mono"
                 >
                   ✕
                 </button>
@@ -691,35 +684,37 @@ export function App() {
 
         {/* Global Search Results Overlay */}
         {searchResults && searchOpen && (
-          <div className={`absolute top-[108px] inset-x-0 bottom-16 z-30 p-4 overflow-y-auto backdrop-blur-xl animate-in fade-in duration-150 ${
-            isDark ? 'bg-[#0e1621]/95 text-slate-100' : 'bg-white/95 text-slate-900'
+          <div className={`absolute top-[96px] inset-x-0 bottom-16 z-30 p-4 overflow-y-auto backdrop-blur-2xl animate-in fade-in duration-150 ${
+            isDark ? 'bg-[#09090b]/98 text-zinc-100' : 'bg-white/98 text-zinc-900'
           }`}>
             <div className="flex justify-between items-center mb-3">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Search Results</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                // Results for "{search}"
+              </span>
               <button
                 onClick={() => {
                   setSearch('');
                   setSearchOpen(false);
                 }}
-                className="text-xs font-bold text-blue-600"
+                className="text-[11px] font-mono font-bold text-zinc-400 hover:text-white"
               >
-                Close
+                [Esc]
               </button>
             </div>
 
             {searchResults.courses.length === 0 && searchResults.materials.length === 0 && searchResults.quizzes.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-xs">
-                No results found for "{search}".
+              <div className="text-center py-16 text-zinc-500 font-mono text-xs">
+                // No matches found.
               </div>
             ) : (
               <div className="space-y-4">
                 {searchResults.courses.length > 0 && (
                   <div>
-                    <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1.5">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
                       <BookOpen className="w-3.5 h-3.5" />
                       <span>Courses ({searchResults.courses.length})</span>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {searchResults.courses.map((c) => (
                         <div
                           key={c.id}
@@ -728,15 +723,17 @@ export function App() {
                             setSearch('');
                             handleOpenCourse(c);
                           }}
-                          className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer active:scale-98 transition ${
-                            isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-xs'
+                          className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer active:scale-98 transition ${
+                            isDark
+                              ? 'bg-[#121215] border-white/[0.08] hover:border-white/[0.2]'
+                              : 'bg-white border-zinc-200 hover:border-zinc-300'
                           }`}
                         >
                           <div>
                             <div className="text-xs font-bold">{c.name}</div>
-                            <div className="text-[10px] text-slate-400">{c.code} • {c.year}</div>
+                            <div className="text-[10px] font-mono text-zinc-500 mt-0.5">{c.code} • {c.year}</div>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-blue-600" />
+                          <ChevronRight className="w-4 h-4 text-zinc-500" />
                         </div>
                       ))}
                     </div>
@@ -745,25 +742,25 @@ export function App() {
 
                 {searchResults.materials.length > 0 && (
                   <div>
-                    <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5" />
                       <span>Study Materials ({searchResults.materials.length})</span>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {searchResults.materials.map((m) => (
                         <div
                           key={m.id}
-                          className={`p-3 rounded-2xl border flex items-center justify-between ${
-                            isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200 shadow-xs'
+                          className={`p-3 rounded-xl border flex items-center justify-between ${
+                            isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                           }`}
                         >
                           <div className="min-w-0 flex-1 pr-2">
                             <div className="text-xs font-bold truncate">{m.title}</div>
-                            <div className="text-[10px] text-slate-400">{m.course} • {m.size}</div>
+                            <div className="text-[10px] font-mono text-zinc-500 mt-0.5">{m.course}</div>
                           </div>
                           <button
                             onClick={() => sendToTelegramChat(m)}
-                            className="bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg"
+                            className="bg-white text-zinc-950 dark:bg-white dark:text-zinc-950 text-[10px] font-mono font-bold px-2 py-1 rounded"
                           >
                             ✈ Send
                           </button>
@@ -782,50 +779,62 @@ export function App() {
 
           {/* ================= PAGE: HOME ================= */}
           {page === 'home' && (
-            <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="space-y-4 animate-in fade-in duration-150">
 
-              {/* Modern Greeting Card */}
-              <div className="rounded-3xl p-5 bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden">
-                <div className="absolute -right-4 -bottom-4 w-32 h-32 rounded-full bg-white/10 blur-xl pointer-events-none" />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-1.5 text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Welcome back</span>
+              {/* Linear HUD Telemetry Card */}
+              <div className={`p-4 rounded-2xl border relative overflow-hidden transition ${
+                isDark
+                  ? 'bg-[#121215] border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]'
+                  : 'bg-white border-zinc-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">LIVE HUD</span>
                   </div>
-                  <h1 className="text-xl font-black tracking-tight">Hi, {firstName} 👋</h1>
-                  <p className="text-xs text-blue-100/90 mt-1 leading-relaxed">
-                    Access vetted CS lecture notes, lab guides, and MoSHE national exit exam prep.
-                  </p>
+                  <span>CURRICULUM v2026</span>
+                </div>
 
-                  <div className="mt-4 pt-3.5 border-t border-white/15 flex items-center justify-between text-xs font-medium">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[11px] text-blue-100">6 Core Disciplines Active</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        triggerHaptic('light');
-                        setPage('exam');
-                      }}
-                      className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-3 py-1 rounded-xl text-[11px] font-bold text-white transition flex items-center gap-1"
-                    >
-                      <Trophy className="w-3 h-3 text-amber-300" />
-                      <span>Exit Exam</span>
-                    </button>
+                <h1 className="text-sm font-bold tracking-tight text-zinc-100 dark:text-white">
+                  Developer Portal // {firstName}
+                </h1>
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  Verified Ethiopian MoSHE CS competencies, revision archives, and practice exams.
+                </p>
+
+                {/* Monospace telemetry badges */}
+                <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <span className="px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]">
+                      {courses.length} COURSES
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]">
+                      {materials.length} MATERIALS
+                    </span>
                   </div>
+                  <button
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setPage('exam');
+                    }}
+                    className="font-mono text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>▶ EXIT EXAM</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
 
-              {/* Academic Year Filter Pills */}
+              {/* Year Filter Pills (Linear Monospace Style) */}
               <div>
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Academic Year
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                    // ACADEMIC YEAR
                   </span>
-                  <span className="text-[11px] text-slate-400">{filteredCourses.length} Courses</span>
+                  <span className="text-[10px] font-mono text-zinc-500">{filteredCourses.length} COURSES</span>
                 </div>
 
-                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                <div className="flex gap-1 overflow-x-auto pb-0.5 no-scrollbar">
                   {['All', '1st Year', '2nd Year', '3rd Year', '4th Year'].map((y) => {
                     const isActive = year === y;
                     return (
@@ -835,23 +844,23 @@ export function App() {
                           triggerHaptic('light');
                           setYear(y);
                         }}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                        className={`px-3 py-1 rounded-lg text-[11px] font-mono font-medium whitespace-nowrap transition border ${
                           isActive
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-102'
+                            ? 'bg-zinc-100 text-zinc-950 font-bold border-zinc-200 dark:bg-white dark:text-zinc-950 dark:border-white shadow-xs'
                             : isDark
-                            ? 'bg-[#17212b] text-slate-400 hover:text-white border border-slate-800'
-                            : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+                            ? 'bg-white/[0.02] text-zinc-400 border-white/[0.06] hover:text-zinc-200 hover:border-white/[0.12]'
+                            : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:text-zinc-900'
                         }`}
                       >
-                        {y === 'All' ? 'All Years' : y}
+                        {y === 'All' ? 'ALL YEARS' : y.toUpperCase()}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Semester Filter Pills */}
-              <div className="flex gap-1.5 px-1">
+              {/* Semester Toggles */}
+              <div className="flex gap-1 px-1">
                 {['All', 'Semester I', 'Semester II'].map((s) => {
                   const isActive = semester === s;
                   return (
@@ -861,139 +870,156 @@ export function App() {
                         triggerHaptic('light');
                         setSemester(s);
                       }}
-                      className={`flex-1 py-1 text-[11px] font-semibold rounded-lg transition ${
+                      className={`flex-1 py-1 text-[10px] font-mono rounded-md transition border ${
                         isActive
                           ? isDark
-                            ? 'bg-slate-800 text-blue-400 font-bold border border-slate-700'
-                            : 'bg-blue-50 text-blue-700 font-bold border border-blue-200'
-                          : 'text-slate-400 hover:text-slate-600'
+                            ? 'bg-white/[0.08] text-white border-white/[0.15] font-bold'
+                            : 'bg-zinc-100 text-zinc-900 border-zinc-300 font-bold'
+                          : isDark
+                          ? 'text-zinc-500 border-transparent hover:text-zinc-300'
+                          : 'text-zinc-400 border-transparent hover:text-zinc-700'
                       }`}
                     >
-                      {s}
+                      {s === 'All' ? '[ ALL SEM ]' : `[ ${s.toUpperCase()} ]`}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Course Catalog (2-Column Grid) */}
+              {/* Course Catalog (Clean Engineering Rows) */}
               <div>
-                <div className="flex items-center justify-between mb-2.5 px-1">
-                  <h3 className="text-sm font-extrabold tracking-tight flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
-                    <span>Curriculum Courses</span>
-                  </h3>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                    // MODULE CATALOG
+                  </span>
                 </div>
 
                 {filteredCourses.length === 0 ? (
-                  <div className={`p-8 text-center rounded-3xl border ${
-                    isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                  <div className={`p-8 text-center rounded-2xl border ${
+                    isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                   }`}>
-                    <Layers className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs font-bold">No courses found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Select a different Year or Semester filter above.</p>
+                    <Terminal className="w-6 h-6 text-zinc-500 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs font-mono font-bold text-zinc-400">// NO COURSES FOUND</p>
+                    <p className="text-[10px] font-mono text-zinc-500 mt-0.5">Switch the Year or Semester filter.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {filteredCourses.map((c) => (
-                      <div
-                        key={c.id}
-                        onClick={() => handleOpenCourse(c)}
-                        className={`p-3.5 rounded-2xl border cursor-pointer active:scale-97 transition-all flex flex-col justify-between group shadow-sm hover:shadow-md ${
-                          isDark
-                            ? 'bg-[#17212b] border-slate-800/90 hover:border-slate-700'
-                            : 'bg-white border-slate-200/90 hover:border-blue-300'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-extrabold font-mono px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                              {c.code}
-                            </span>
-                            <span className="text-[9px] text-slate-400 font-medium">{c.year}</span>
+                  <div className="space-y-1.5">
+                    {filteredCourses.map((c) => {
+                      const count = getCourseMaterialCount(c.name);
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => handleOpenCourse(c)}
+                          className={`p-3 rounded-xl border cursor-pointer active:scale-98 transition flex items-center justify-between group ${
+                            isDark
+                              ? 'bg-[#121215] border-white/[0.08] hover:border-white/[0.18] hover:bg-[#151518]'
+                              : 'bg-white border-zinc-200 hover:border-zinc-300 shadow-xs'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1 pr-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                {c.code}
+                              </span>
+                              <span className="font-mono text-[9px] text-zinc-500 uppercase">
+                                {c.year} • {c.sem}
+                              </span>
+                            </div>
+
+                            <h4 className="text-xs font-bold tracking-tight text-zinc-200 group-hover:text-white transition truncate">
+                              {c.name}
+                            </h4>
                           </div>
 
-                          <h4 className="text-xs font-bold leading-snug line-clamp-2 text-slate-800 dark:text-slate-100 group-hover:text-blue-600 transition">
-                            {c.name}
-                          </h4>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono text-[10px] text-zinc-500 flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-zinc-500" />
+                              <span>{count} docs</span>
+                            </span>
+                            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 group-hover:translate-x-0.5 transition" />
+                          </div>
                         </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                          <span className="flex items-center gap-1 font-medium">
-                            <FileText className="w-3 h-3 text-blue-500" />
-                            {c.count} files
-                          </span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* High-Yield Study Materials Feed */}
+              {/* Quick Study Resources Feed (Zero fake data) */}
               <div>
-                <div className="flex items-center justify-between mb-2.5 px-1">
-                  <h3 className="text-sm font-extrabold tracking-tight flex items-center gap-1.5">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    <span>Quick Study Resources</span>
-                  </h3>
-                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
-                    1-Tap Delivery
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                    // STREAMED MATERIALS
+                  </span>
+                  <span className="text-[9px] font-mono text-zinc-500">
+                    REAL-TIME SYNC
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  {materials.slice(0, 6).map((m) => {
-                    const isBookmarked = bookmarks.includes(m.title);
-                    return (
-                      <div
-                        key={m.id}
-                        className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-xs transition ${
-                          isDark ? 'bg-[#17212b] border-slate-800/80' : 'bg-white border-slate-200/80'
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1 pr-2.5">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300">
-                              {m.type}
-                            </span>
-                            <h5 className="text-xs font-bold truncate text-slate-800 dark:text-slate-100">
-                              {m.title}
-                            </h5>
+                {materials.length === 0 ? (
+                  <div className={`p-6 rounded-2xl border text-center ${
+                    isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
+                  }`}>
+                    <Terminal className="w-5 h-5 text-zinc-500 mx-auto mb-1.5 opacity-40" />
+                    <p className="text-[11px] font-mono text-zinc-400 font-bold">// NO MATERIALS PUBLISHED YET</p>
+                    <p className="text-[10px] font-mono text-zinc-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                      Notes and lecture slide PDFs uploaded by department admins stream directly into this view.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {materials.slice(0, 6).map((m) => {
+                      const isBookmarked = bookmarks.includes(m.title);
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-3 rounded-xl border flex items-center justify-between transition ${
+                            isDark ? 'bg-[#121215] border-white/[0.08] hover:border-white/[0.15]' : 'bg-white border-zinc-200'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1 pr-2.5">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase bg-white/[0.06] text-zinc-300 border border-white/[0.08]">
+                                {m.type}
+                              </span>
+                              <h5 className="text-xs font-bold truncate text-zinc-200">
+                                {m.title}
+                              </h5>
+                            </div>
+                            <div className="text-[10px] font-mono text-zinc-500 flex items-center gap-2">
+                              <span className="truncate">{m.course}</span>
+                              <span>•</span>
+                              <span className="shrink-0">{m.size}</span>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                            <span className="truncate">{m.course}</span>
-                            <span>•</span>
-                            <span className="shrink-0">{m.size}</span>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => toggleBookmark(m.title)}
+                              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition active:scale-90 ${
+                                isBookmarked
+                                  ? 'text-amber-400 border-amber-400/30 bg-amber-400/10'
+                                  : isDark
+                                  ? 'border-white/[0.08] text-zinc-500 hover:text-zinc-200'
+                                  : 'border-zinc-200 text-zinc-400 hover:text-zinc-600'
+                              }`}
+                            >
+                              <Star className={`w-3 h-3 ${isBookmarked ? 'fill-current' : ''}`} />
+                            </button>
+
+                            <button
+                              onClick={() => sendToTelegramChat(m)}
+                              className="bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-mono font-bold px-2.5 py-1 rounded-md transition flex items-center gap-1"
+                            >
+                              <Send className="w-2.5 h-2.5" />
+                              <span>SEND</span>
+                            </button>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => toggleBookmark(m.title)}
-                            className={`w-8 h-8 rounded-xl border flex items-center justify-center transition active:scale-90 ${
-                              isBookmarked
-                                ? 'text-amber-500 border-amber-300 bg-amber-50 dark:bg-amber-950/40'
-                                : isDark
-                                ? 'border-slate-800 text-slate-400 hover:text-white'
-                                : 'border-slate-200 text-slate-400 hover:text-slate-600'
-                            }`}
-                          >
-                            <Star className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-current' : ''}`} />
-                          </button>
-
-                          <button
-                            onClick={() => sendToTelegramChat(m)}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1"
-                          >
-                            <Send className="w-3 h-3" />
-                            <span>Send</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -1010,37 +1036,37 @@ export function App() {
                     setPage('home');
                     setActiveCourse(null);
                   }}
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5 hover:underline"
+                  className="text-xs font-mono font-bold text-zinc-400 hover:text-white flex items-center gap-1.5"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to Courses</span>
+                  <span>// .. BACK TO COURSES</span>
                 </button>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-extrabold font-mono">
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   {activeCourse.code}
                 </span>
               </div>
 
               {/* Course Header Banner */}
-              <div className={`p-4 rounded-3xl border shadow-sm ${
-                isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+              <div className={`p-4 rounded-2xl border ${
+                isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
               }`}>
-                <h2 className="text-base font-extrabold">{activeCourse.name}</h2>
-                <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                <h2 className="text-sm font-bold tracking-tight text-white">{activeCourse.name}</h2>
+                <div className="text-[10px] font-mono text-zinc-400 mt-1 flex items-center gap-2">
                   <span>{activeCourse.year}</span>
                   <span>•</span>
                   <span>{activeCourse.sem}</span>
                   <span>•</span>
-                  <span>Computer Science</span>
+                  <span>COMPUTER SCIENCE</span>
                 </div>
               </div>
 
-              {/* Category Segmented Tabs */}
-              <div className="flex gap-1 p-1 bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl">
+              {/* Category Segmented Tabs (Linear Style) */}
+              <div className="flex gap-1 p-1 bg-white/[0.03] border border-white/[0.08] rounded-xl">
                 {[
-                  ['notes', '📘 Notes'],
-                  ['labs', '🧪 Labs'],
-                  ['exams', '📝 Exams'],
-                  ['quizzes', '💡 Quizzes'],
+                  ['notes', 'NOTES'],
+                  ['labs', 'LABS'],
+                  ['exams', 'EXAMS'],
+                  ['quizzes', 'QUIZZES'],
                 ].map(([id, label]) => (
                   <button
                     key={id}
@@ -1048,10 +1074,10 @@ export function App() {
                       triggerHaptic('light');
                       setCourseCategoryTab(id);
                     }}
-                    className={`flex-1 py-1.5 text-[11px] font-bold rounded-xl transition text-center ${
+                    className={`flex-1 py-1 text-[10px] font-mono font-bold rounded-lg transition text-center ${
                       courseCategoryTab === id
-                        ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        ? 'bg-zinc-100 text-zinc-950 dark:bg-white dark:text-zinc-950 shadow-xs'
+                        : 'text-zinc-400 hover:text-white'
                     }`}
                   >
                     {label}
@@ -1060,27 +1086,30 @@ export function App() {
               </div>
 
               {/* Content List */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {courseCategoryTab === 'quizzes' ? (
                   quizzes
                     .filter((q) => q.course === activeCourse.name || activeCourse.name.includes(q.course))
-                    .map((qz) => (
-                      <div
-                        key={qz.id}
-                        onClick={() => handleStartQuiz(qz)}
-                        className={`p-3.5 rounded-2xl border flex items-center justify-between cursor-pointer active:scale-98 transition shadow-xs ${
-                          isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-bold">{qz.title}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{qz.q} questions • {qz.time}</div>
+                    .map((qz) => {
+                      const qCount = COURSE_QUESTIONS[qz.course]?.length || 0;
+                      return (
+                        <div
+                          key={qz.id}
+                          onClick={() => handleStartQuiz(qz)}
+                          className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer active:scale-98 transition ${
+                            isDark ? 'bg-[#121215] border-white/[0.08] hover:border-white/[0.18]' : 'bg-white border-zinc-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-bold">{qz.title}</div>
+                            <div className="text-[10px] font-mono text-zinc-500 mt-0.5">{qCount} QUESTIONS • {qz.time}</div>
+                          </div>
+                          <span className="bg-zinc-100 dark:bg-white text-zinc-950 text-[10px] font-mono font-bold px-2.5 py-1 rounded">
+                            START →
+                          </span>
                         </div>
-                        <span className="bg-blue-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs">
-                          Start Quiz →
-                        </span>
-                      </div>
-                    ))
+                      );
+                    })
                 ) : (
                   materials
                     .filter(
@@ -1091,18 +1120,18 @@ export function App() {
                     .map((m) => (
                       <div
                         key={m.id}
-                        className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-xs transition ${
-                          isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                        className={`p-3 rounded-xl border flex items-center justify-between transition ${
+                          isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                         }`}
                       >
                         <div className="min-w-0 flex-1 pr-2">
                           <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 uppercase">
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-white/[0.06] text-zinc-300 border border-white/[0.08] uppercase">
                               {m.type}
                             </span>
                             <h5 className="text-xs font-bold truncate">{m.title}</h5>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-1">
+                          <div className="text-[10px] font-mono text-zinc-500 mt-1">
                             {m.size} • {m.date}
                           </div>
                         </div>
@@ -1112,18 +1141,18 @@ export function App() {
                             onClick={() => toggleBookmark(m.title)}
                             className={`w-7 h-7 rounded-lg border flex items-center justify-center text-xs transition ${
                               bookmarks.includes(m.title)
-                                ? 'text-amber-500 border-amber-300 bg-amber-50 dark:bg-amber-950/40'
-                                : 'text-slate-400 border-slate-200 dark:border-slate-700'
+                                ? 'text-amber-400 border-amber-400/30 bg-amber-400/10'
+                                : 'text-zinc-500 border-white/[0.08]'
                             }`}
                           >
-                            <Star className={`w-3.5 h-3.5 ${bookmarks.includes(m.title) ? 'fill-current' : ''}`} />
+                            <Star className={`w-3 h-3 ${bookmarks.includes(m.title) ? 'fill-current' : ''}`} />
                           </button>
                           <button
                             onClick={() => sendToTelegramChat(m)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1"
+                            className="bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-mono font-bold px-2.5 py-1 rounded transition flex items-center gap-1"
                           >
-                            <Send className="w-3 h-3" />
-                            <span>Send</span>
+                            <Send className="w-2.5 h-2.5" />
+                            <span>SEND</span>
                           </button>
                         </div>
                       </div>
@@ -1136,13 +1165,13 @@ export function App() {
                     m.category === courseCategoryTab
                 ).length === 0 &&
                   courseCategoryTab !== 'quizzes' && (
-                    <div className={`p-8 text-center rounded-3xl border ${
-                      isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                    <div className={`p-8 text-center rounded-2xl border ${
+                      isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                     }`}>
-                      <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-40" />
-                      <div className="text-xs font-bold">No {courseCategoryTab} uploaded yet</div>
-                      <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
-                        Materials will appear here as curriculum modules update.
+                      <FileText className="w-6 h-6 text-zinc-500 mx-auto mb-2 opacity-40" />
+                      <div className="text-xs font-mono font-bold text-zinc-400">// NO {courseCategoryTab.toUpperCase()} UPLOADED YET</div>
+                      <p className="text-[10px] font-mono text-zinc-500 mt-1 max-w-xs mx-auto">
+                        Materials published for this discipline will appear here.
                       </p>
                     </div>
                   )}
@@ -1154,12 +1183,14 @@ export function App() {
           {page === 'quizzes' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="px-1">
-                <h2 className="text-base font-black tracking-tight">Course Quizzes</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Test your concept mastery with topic-specific problem sets</p>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">
+                  // COMPETENCY EVALUATION
+                </span>
+                <h2 className="text-sm font-bold tracking-tight text-white mt-0.5">Discipline Problem Sets</h2>
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex gap-1.5 px-1">
+              <div className="flex gap-1 px-1">
                 {['All', 'Available', 'Completed'].map((tab) => (
                   <button
                     key={tab}
@@ -1167,56 +1198,53 @@ export function App() {
                       triggerHaptic('light');
                       setQuizTab(tab);
                     }}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
+                    className={`px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition border ${
                       quizTab === tab
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                        ? 'bg-zinc-100 text-zinc-950 font-bold border-zinc-200 dark:bg-white dark:text-zinc-950 dark:border-white shadow-xs'
                         : isDark
-                        ? 'bg-[#17212b] text-slate-400 border border-slate-800'
-                        : 'bg-white text-slate-600 border border-slate-200'
+                        ? 'bg-white/[0.02] text-zinc-400 border-white/[0.06]'
+                        : 'bg-zinc-50 text-zinc-600 border-zinc-200'
                     }`}
                   >
-                    {tab}
+                    {tab.toUpperCase()}
                   </button>
                 ))}
               </div>
 
               {/* Quiz Cards */}
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 {quizzes
                   .filter((q) => quizTab === 'All' || q.status === quizTab)
-                  .map((q) => (
-                    <div
-                      key={q.id}
-                      onClick={() => handleStartQuiz(q)}
-                      className={`p-4 rounded-3xl border cursor-pointer active:scale-98 transition shadow-sm flex items-center justify-between ${
-                        isDark ? 'bg-[#17212b] border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 font-mono uppercase tracking-wider">
-                          {q.course}
-                        </span>
-                        <h4 className="text-xs font-bold mt-1 text-slate-800 dark:text-slate-100">{q.title}</h4>
-                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                          <span className="flex items-center gap-1">
-                            <CheckSquare className="w-3 h-3 text-emerald-500" />
-                            {q.q} questions
+                  .map((q) => {
+                    const qCount = COURSE_QUESTIONS[q.course]?.length || 0;
+                    return (
+                      <div
+                        key={q.id}
+                        onClick={() => handleStartQuiz(q)}
+                        className={`p-3.5 rounded-xl border cursor-pointer active:scale-98 transition flex items-center justify-between ${
+                          isDark ? 'bg-[#121215] border-white/[0.08] hover:border-white/[0.18]' : 'bg-white border-zinc-200'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-mono font-bold text-indigo-400 uppercase tracking-wider block">
+                            // {q.course}
                           </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-500" />
-                            {q.time}
+                          <h4 className="text-xs font-bold mt-1 text-zinc-200">{q.title}</h4>
+                          <div className="text-[10px] font-mono text-zinc-500 mt-1 flex items-center gap-2">
+                            <span>{qCount} QUESTIONS</span>
+                            <span>•</span>
+                            <span>{q.time}</span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          <span className="bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-mono font-bold px-3 py-1.5 rounded-md transition flex items-center gap-1">
+                            RUN →
                           </span>
                         </div>
                       </div>
-
-                      <div className="shrink-0">
-                        <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm flex items-center gap-1">
-                          Start →
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -1225,22 +1253,24 @@ export function App() {
           {page === 'exam' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               {/* Exit Exam Banner */}
-              <div className="rounded-3xl p-5 bg-gradient-to-br from-emerald-600 via-teal-600 to-teal-700 text-white shadow-xl shadow-teal-500/20">
-                <div className="inline-block px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-bold uppercase tracking-wider mb-2">
-                  MoSHE National Exit Exam
+              <div className={`p-4 rounded-2xl border ${
+                isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
+              }`}>
+                <div className="inline-block px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono font-bold text-emerald-400 uppercase tracking-wider mb-1.5">
+                  ETHIOPIAN MoSHE EXIT EXAM
                 </div>
-                <h2 className="text-lg font-black leading-tight">Exit Exam Simulator</h2>
-                <p className="text-xs text-teal-100 mt-1 leading-relaxed">
-                  Practice standard Ethiopian university Computer Science exit competency examinations.
+                <h2 className="text-sm font-bold text-white leading-tight">National Competency Simulator</h2>
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  Practice standard university exit competency questions under timed conditions.
                 </p>
               </div>
 
               {/* Sub-Tabs: Mock Exams | Leaderboard | My History */}
-              <div className="flex bg-slate-200/70 dark:bg-slate-800/80 rounded-2xl p-1 gap-1 text-xs font-bold">
+              <div className="flex bg-white/[0.03] border border-white/[0.08] rounded-xl p-1 gap-1 text-[10px] font-mono font-bold">
                 {[
-                  { id: 'exams', label: 'Mock Exams' },
-                  { id: 'leaderboard', label: '🏆 Leaderboard' },
-                  { id: 'history', label: '📊 My History' },
+                  { id: 'exams', label: 'SIMULATOR' },
+                  { id: 'leaderboard', label: '🏆 LEADERBOARD' },
+                  { id: 'history', label: '📊 AUDIT LOG' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1248,10 +1278,10 @@ export function App() {
                       triggerHaptic('light');
                       setExamSubTab(tab.id);
                     }}
-                    className={`flex-1 py-1.5 rounded-xl transition text-center ${
+                    className={`flex-1 py-1 rounded-lg transition text-center ${
                       examSubTab === tab.id
-                        ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        ? 'bg-zinc-100 text-zinc-950 dark:bg-white dark:text-zinc-950 shadow-xs'
+                        : 'text-zinc-400 hover:text-white'
                     }`}
                   >
                     {tab.label}
@@ -1261,50 +1291,53 @@ export function App() {
 
               {/* TAB 1: MOCK EXAMS LIST */}
               {examSubTab === 'exams' && (
-                <div className="space-y-2.5">
-                  {exams.map((ex) => (
-                    <div
-                      key={ex.id}
-                      onClick={() => handleStartExam(ex)}
-                      className={`p-4 rounded-3xl border cursor-pointer active:scale-98 transition shadow-xs flex items-center justify-between ${
-                        isDark ? 'bg-[#17212b] border-slate-800 hover:border-emerald-500/50' : 'bg-white border-slate-200 hover:border-emerald-300'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1 pr-3">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">{ex.name}</h4>
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              triggerHaptic('light');
-                              setLeaderboardCourse(ex.name);
-                              setExamSubTab('leaderboard');
-                            }}
-                            className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
-                          >
-                            🏆 Rank
-                          </span>
+                <div className="space-y-1.5">
+                  {exams.map((ex) => {
+                    const qCount = COURSE_QUESTIONS[ex.name]?.length || 0;
+                    return (
+                      <div
+                        key={ex.id}
+                        onClick={() => handleStartExam(ex)}
+                        className={`p-3.5 rounded-xl border cursor-pointer active:scale-98 transition flex items-center justify-between ${
+                          isDark ? 'bg-[#121215] border-white/[0.08] hover:border-emerald-500/30' : 'bg-white border-zinc-200'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1 pr-3">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-zinc-200">{ex.name}</h4>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                triggerHaptic('light');
+                                setLeaderboardCourse(ex.name);
+                                setExamSubTab('leaderboard');
+                              }}
+                              className="text-[9px] font-mono text-emerald-400 hover:underline cursor-pointer"
+                            >
+                              [RANK]
+                            </span>
+                          </div>
+                          <p className="text-[10px] font-mono text-zinc-500 mt-1 line-clamp-1">{ex.desc}</p>
+                          <div className="text-[10px] font-mono text-zinc-400 mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>{qCount} Questions</span>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">{ex.desc}</p>
-                        <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{ex.q} Practice Questions</span>
-                        </div>
-                      </div>
 
-                      <button className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs shrink-0">
-                        Practice →
-                      </button>
-                    </div>
-                  ))}
+                        <button className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-[10px] font-mono font-bold px-3 py-1.5 rounded transition shrink-0">
+                          RUN →
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
               {/* TAB 2: DEPARTMENT LEADERBOARD */}
               {examSubTab === 'leaderboard' && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {/* Course Picker Chips */}
-                  <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                  <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
                     {exams.map((ex) => (
                       <button
                         key={ex.id}
@@ -1312,12 +1345,12 @@ export function App() {
                           triggerHaptic('light');
                           setLeaderboardCourse(ex.name);
                         }}
-                        className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                        className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-medium whitespace-nowrap transition border ${
                           leaderboardCourse === ex.name
-                            ? 'bg-emerald-600 text-white shadow-xs'
+                            ? 'bg-zinc-100 text-zinc-950 font-bold border-zinc-200 dark:bg-white dark:text-zinc-950 dark:border-white shadow-xs'
                             : isDark
-                            ? 'bg-[#17212b] text-slate-400 border border-slate-800'
-                            : 'bg-white text-slate-600 border border-slate-200'
+                            ? 'bg-white/[0.02] text-zinc-400 border-white/[0.06]'
+                            : 'bg-zinc-50 text-zinc-600 border-zinc-200'
                         }`}
                       >
                         {ex.name}
@@ -1326,40 +1359,40 @@ export function App() {
                   </div>
 
                   {isLoadingLeaderboard ? (
-                    <div className="py-12 text-center text-xs text-slate-400">Loading leaderboard...</div>
+                    <div className="py-12 text-center text-xs font-mono text-zinc-500">// Loading leaderboard...</div>
                   ) : leaderboardList.length === 0 ? (
-                    <div className={`p-8 text-center rounded-3xl border ${
-                      isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                    <div className={`p-8 text-center rounded-2xl border ${
+                      isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                     }`}>
-                      <Trophy className="w-8 h-8 text-amber-500 mx-auto mb-2 opacity-50" />
-                      <div className="text-xs font-bold">No scores recorded yet for {leaderboardCourse}</div>
-                      <p className="text-[11px] text-slate-400 mt-1">Take the test now to set the high score on the leaderboard!</p>
+                      <Trophy className="w-6 h-6 text-amber-400 mx-auto mb-2 opacity-50" />
+                      <div className="text-xs font-mono font-bold text-zinc-400">// NO SCORES LOGGED YET</div>
+                      <p className="text-[10px] font-mono text-zinc-500 mt-1">Complete the test to claim #1 rank on the leaderboard.</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {leaderboardList.map((entry, idx) => {
-                        const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                        const rankMedal = idx === 0 ? '#01' : idx === 1 ? '#02' : idx === 2 ? '#03' : `#0${idx + 1}`;
                         return (
                           <div
                             key={entry.id || idx}
-                            className={`p-3 rounded-2xl border flex items-center justify-between shadow-xs ${
+                            className={`p-3 rounded-xl border flex items-center justify-between ${
                               idx === 0
-                                ? 'bg-amber-500/10 border-amber-400/40'
+                                ? 'bg-amber-500/10 border-amber-400/30'
                                 : isDark
-                                ? 'bg-[#17212b] border-slate-800'
-                                : 'bg-white border-slate-200'
+                                ? 'bg-[#121215] border-white/[0.08]'
+                                : 'bg-white border-zinc-200'
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-base font-black w-6 text-center">{rankMedal}</span>
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-mono text-xs font-black w-7 text-center text-zinc-400">{rankMedal}</span>
                               <div>
                                 <div className="text-xs font-bold">{entry.student_name || 'Anonymous Student'}</div>
-                                <div className="text-[10px] text-slate-400">
-                                  {entry.score} / {entry.total_questions} correct • {Math.floor(entry.time_taken_seconds / 60)}m {entry.time_taken_seconds % 60}s
+                                <div className="text-[10px] font-mono text-zinc-500">
+                                  {entry.score}/{entry.total_questions} correct • {Math.floor(entry.time_taken_seconds / 60)}m {entry.time_taken_seconds % 60}s
                                 </div>
                               </div>
                             </div>
-                            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                            <span className="text-xs font-mono font-black text-emerald-400">
                               {entry.percentage}%
                             </span>
                           </div>
@@ -1372,37 +1405,37 @@ export function App() {
 
               {/* TAB 3: PERSONAL EXAM HISTORY */}
               {examSubTab === 'history' && (
-                <div className="space-y-2.5">
+                <div className="space-y-1.5">
                   {isLoadingHistory ? (
-                    <div className="py-12 text-center text-xs text-slate-400">Loading history...</div>
+                    <div className="py-12 text-center text-xs font-mono text-zinc-500">// Loading history...</div>
                   ) : examHistoryList.length === 0 ? (
-                    <div className={`p-8 text-center rounded-3xl border ${
-                      isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                    <div className={`p-8 text-center rounded-2xl border ${
+                      isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                     }`}>
-                      <RotateCcw className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-50" />
-                      <div className="text-xs font-bold">No exam attempts recorded</div>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Complete any quiz or exit exam to track your personal performance over time.
+                      <RotateCcw className="w-6 h-6 text-zinc-500 mx-auto mb-2 opacity-50" />
+                      <div className="text-xs font-mono font-bold text-zinc-400">// NO EXAM ATTEMPTS RECORDED</div>
+                      <p className="text-[10px] font-mono text-zinc-500 mt-1">
+                        Finish a quiz or exam attempt to view audit logs here.
                       </p>
                     </div>
                   ) : (
                     examHistoryList.map((h, i) => (
                       <div
                         key={h.id || i}
-                        className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-xs ${
-                          isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                        className={`p-3 rounded-xl border flex items-center justify-between ${
+                          isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                         }`}
                       >
                         <div>
                           <div className="text-xs font-bold">{h.course_name}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
                             {new Date(h.created_at).toLocaleDateString()} • {h.score}/{h.total_questions} correct
                           </div>
                         </div>
-                        <span className={`text-xs font-black px-2 py-0.5 rounded-lg ${
+                        <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
                           h.percentage >= 70
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         }`}>
                           {h.percentage}%
                         </span>
@@ -1414,33 +1447,33 @@ export function App() {
             </div>
           )}
 
-          {/* ================= PAGE: QUIZ / EXAM INTERACTIVE PLAYER ================= */}
+          {/* ================= PAGE: QUIZ / EXAM INTERACTIVE RUNNER ================= */}
           {(page === 'quiz-view' || page === 'exam-view') && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Sticky Player Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="space-y-3 animate-in fade-in duration-150">
+              {/* Command Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
                 <button
                   onClick={() => {
                     triggerHaptic('light');
                     setPage(page === 'quiz-view' ? 'quizzes' : 'exam');
                   }}
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"
+                  className="text-xs font-mono font-bold text-zinc-400 hover:text-white flex items-center gap-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Exit</span>
+                  <span>// ABORT</span>
                 </button>
 
-                <div className="text-center">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider block">
-                    {activeExam?.name || activeQuiz?.title || 'Practice Test'}
+                <div className="text-center font-mono">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                    {activeExam?.name || activeQuiz?.title || 'EXAM RUNNER'}
                   </span>
-                  <div className="text-[10px] text-slate-400">
-                    Question {currentQuestionIdx + 1} of {currentQuestions.length}
+                  <div className="text-[10px] text-zinc-500">
+                    [{String(currentQuestionIdx + 1).padStart(2, '0')} / {String(currentQuestions.length).padStart(2, '0')}]
                   </div>
                 </div>
 
                 {playerMode === 'exam' && (
-                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-200 dark:border-rose-900">
+                  <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
                     <Clock className="w-3 h-3" />
                     <span>
                       {Math.floor(examTimeLeft / 60)}:{(examTimeLeft % 60).toString().padStart(2, '0')}
@@ -1449,30 +1482,31 @@ export function App() {
                 )}
               </div>
 
-              {/* Progress Bar */}
-              <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              {/* Linear hairline progress */}
+              <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
                 <div
-                  className="bg-blue-600 h-full transition-all duration-300"
+                  className="bg-emerald-400 h-full transition-all duration-300"
                   style={{ width: `${((currentQuestionIdx + 1) / currentQuestions.length) * 100}%` }}
                 />
               </div>
 
               {/* Exam Submitted Summary Report */}
               {examSubmitted ? (
-                <div className={`p-6 rounded-3xl border text-center shadow-lg ${
-                  isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                <div className={`p-6 rounded-2xl border text-center ${
+                  isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                 }`}>
-                  <div className="text-4xl mb-2">🎓</div>
-                  <h3 className="text-base font-extrabold">Exam Completed!</h3>
-                  <div className="text-4xl font-black text-blue-600 dark:text-blue-400 my-2">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 block">
+                    // EXECUTION COMPLETE
+                  </span>
+                  <div className="text-4xl font-mono font-black text-emerald-400 my-2">
                     {calculateScore().percentage}%
                   </div>
-                  <div className="text-xs text-slate-400 mb-2">
-                    Score: {calculateScore().correct} / {calculateScore().total} questions correct
+                  <div className="text-xs font-mono text-zinc-400 mb-2">
+                    SCORE: {calculateScore().correct} / {calculateScore().total} QUESTIONS CORRECT
                   </div>
-                  <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mb-4 flex items-center justify-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Score recorded to Department Leaderboard</span>
+                  <div className="text-[10px] font-mono text-emerald-400 mb-4 flex items-center justify-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>RECORDED TO DEPARTMENT LEADERBOARD</span>
                   </div>
 
                   <div className="space-y-2">
@@ -1483,10 +1517,10 @@ export function App() {
                         setExamSubTab('leaderboard');
                         setPage('exam');
                       }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5"
+                      className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-mono font-bold py-2 rounded transition flex items-center justify-center gap-1.5"
                     >
                       <Trophy className="w-3.5 h-3.5" />
-                      <span>View Department Leaderboard</span>
+                      <span>VIEW LEADERBOARD</span>
                     </button>
 
                     <button
@@ -1498,45 +1532,45 @@ export function App() {
                         setExamAnswers({});
                         setExamTimeLeft(600);
                       }}
-                      className={`w-full text-xs font-bold py-2 rounded-xl border transition ${
-                        isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      className={`w-full text-xs font-mono font-bold py-1.5 rounded border transition ${
+                        isDark ? 'border-white/[0.1] text-zinc-300 hover:bg-zinc-800' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100'
                       }`}
                     >
-                      Retake Test
+                      RETAKE TEST
                     </button>
                   </div>
                 </div>
               ) : (
-                /* Question Card */
-                <div className={`p-5 rounded-3xl border shadow-sm ${
-                  isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+                /* Question Console Card */
+                <div className={`p-4 rounded-2xl border ${
+                  isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
                 }`}>
-                  <p className="text-sm font-bold leading-relaxed mb-4 text-slate-800 dark:text-slate-100">
+                  <p className="text-xs font-medium leading-relaxed mb-4 text-zinc-100">
                     {currentQuestions[currentQuestionIdx]?.q}
                   </p>
 
-                  {/* Options */}
-                  <div className="space-y-2.5">
+                  {/* Choice Keys */}
+                  <div className="space-y-2">
                     {currentQuestions[currentQuestionIdx]?.options.map((opt, idx) => {
                       const isChosen = selectedAnswer === idx || examAnswers[currentQuestionIdx] === idx;
                       const isCorrect = idx === currentQuestions[currentQuestionIdx]?.correct;
                       const showResult = playerMode === 'practice' && selectedAnswer !== null;
 
-                      let style = isDark ? 'bg-slate-800/60 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700';
+                      let style = isDark ? 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:border-white/[0.2]' : 'bg-zinc-50 border-zinc-200 text-zinc-700';
                       if (showResult) {
-                        if (isCorrect) style = 'bg-emerald-500/10 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold';
-                        else if (isChosen && !isCorrect) style = 'bg-rose-500/10 border-rose-500 text-rose-800 dark:text-rose-200';
+                        if (isCorrect) style = 'bg-emerald-500/10 border-emerald-500 text-emerald-300 font-bold';
+                        else if (isChosen && !isCorrect) style = 'bg-rose-500/10 border-rose-500 text-rose-300';
                       } else if (isChosen) {
-                        style = 'bg-blue-500/10 border-blue-500 text-blue-800 dark:text-blue-200 font-bold';
+                        style = 'bg-indigo-500/10 border-indigo-500 text-indigo-300 font-bold';
                       }
 
                       return (
                         <button
                           key={idx}
                           onClick={() => handleAnswerSelect(idx)}
-                          className={`w-full text-left p-3 rounded-2xl border text-xs flex items-center gap-3 transition active:scale-98 ${style}`}
+                          className={`w-full text-left p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition active:scale-98 ${style}`}
                         >
-                          <span className="w-6 h-6 rounded-full border border-current flex items-center justify-center text-[10px] font-bold shrink-0">
+                          <span className="w-5 h-5 rounded font-mono border border-current flex items-center justify-center text-[10px] font-bold shrink-0">
                             {['A', 'B', 'C', 'D'][idx]}
                           </span>
                           <span className="flex-1 leading-snug">{opt}</span>
@@ -1545,18 +1579,18 @@ export function App() {
                     })}
                   </div>
 
-                  {/* Practice Explanation Box */}
+                  {/* Terminal Explanation Output */}
                   {playerMode === 'practice' && selectedAnswer !== null && (
-                    <div className="mt-4 p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-xs">
-                      <b className="text-blue-700 dark:text-blue-300 block mb-0.5">Explanation:</b>
-                      <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                    <div className="mt-3.5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.08] text-xs font-mono">
+                      <span className="text-zinc-500 block mb-0.5">// EXPLANATION LOG:</span>
+                      <p className="text-zinc-300 text-[11px] leading-relaxed">
                         {currentQuestions[currentQuestionIdx]?.explanation}
                       </p>
                     </div>
                   )}
 
                   {/* Navigation Buttons */}
-                  <div className="flex justify-between items-center mt-5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mt-4 pt-3 border-t border-white/[0.08]">
                     <button
                       disabled={currentQuestionIdx === 0}
                       onClick={() => {
@@ -1564,9 +1598,9 @@ export function App() {
                         setCurrentQuestionIdx(currentQuestionIdx - 1);
                         setSelectedAnswer(examAnswers[currentQuestionIdx - 1] ?? null);
                       }}
-                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold disabled:opacity-30"
+                      className="px-3 py-1 rounded font-mono text-xs font-semibold border border-white/[0.08] text-zinc-400 disabled:opacity-30"
                     >
-                      Previous
+                      PREV
                     </button>
 
                     {currentQuestionIdx < currentQuestions.length - 1 ? (
@@ -1576,16 +1610,16 @@ export function App() {
                           setCurrentQuestionIdx(currentQuestionIdx + 1);
                           setSelectedAnswer(examAnswers[currentQuestionIdx + 1] ?? null);
                         }}
-                        className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-xl shadow-xs"
+                        className="bg-zinc-100 hover:bg-white text-zinc-950 font-mono text-xs font-bold px-3 py-1 rounded"
                       >
-                        Next →
+                        NEXT →
                       </button>
                     ) : (
                       <button
                         onClick={handleFinishExam}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-1.5 rounded-xl shadow-xs"
+                        className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-mono text-xs font-bold px-3 py-1 rounded"
                       >
-                        Finish Test ✓
+                        FINISH TEST ✓
                       </button>
                     )}
                   </div>
@@ -1598,93 +1632,95 @@ export function App() {
           {page === 'profile' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="flex justify-between items-center px-1">
-                <h2 className="text-base font-black tracking-tight">Student Profile</h2>
-                <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  <BadgeCheck className="w-3.5 h-3.5" />
-                  <span>Telegram Verified</span>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                  // STUDENT TELEMETRY
+                </span>
+                <div className="flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>TG VERIFIED</span>
                 </div>
               </div>
 
               {/* Profile Card */}
-              <div className={`p-5 rounded-3xl border text-center shadow-sm ${
-                isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+              <div className={`p-4 rounded-2xl border text-center ${
+                isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
               }`}>
-                <div className="w-16 h-16 rounded-full bg-blue-600/10 text-blue-600 text-2xl font-black flex items-center justify-center mx-auto mb-2.5 border-2 border-blue-500/20 overflow-hidden shadow-inner">
+                <div className="w-14 h-14 rounded-xl bg-white/[0.04] text-zinc-100 text-xl font-mono font-bold flex items-center justify-center mx-auto mb-2 border border-white/[0.1] overflow-hidden">
                   {profile?.photo_url ? (
                     <img src={profile.photo_url} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     firstName.charAt(0)
                   )}
                 </div>
-                <h3 className="text-sm font-extrabold">{profile?.full_name || 'Student'}</h3>
-                <div className="text-xs text-slate-400 mt-0.5">
+                <h3 className="text-xs font-bold tracking-tight text-white">{profile?.full_name || 'Student'}</h3>
+                <div className="text-[11px] font-mono text-zinc-400 mt-0.5">
                   {profile?.telegram_username ? `@${profile.telegram_username}` : (profile?.telegram_id ? `ID: ${profile.telegram_id}` : 'Student')}
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono mt-1">
+                <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
                   📱 {profile?.phone || 'Verified via Telegram'}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 text-left text-xs">
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                    <span className="text-[10px] text-slate-400 block font-medium">Department</span>
-                    <b>Computer Science</b>
+                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/[0.08] text-left text-xs font-mono">
+                  <div className="p-2 rounded bg-white/[0.02] border border-white/[0.06]">
+                    <span className="text-[9px] text-zinc-500 block uppercase">Department</span>
+                    <b className="text-[11px] text-zinc-300">Computer Science</b>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                    <span className="text-[10px] text-slate-400 block font-medium">Curriculum</span>
-                    <b>B.Sc. MoSHE Standard</b>
+                  <div className="p-2 rounded bg-white/[0.02] border border-white/[0.06]">
+                    <span className="text-[9px] text-zinc-500 block uppercase">Curriculum</span>
+                    <b className="text-[11px] text-zinc-300">MoSHE Standard</b>
                   </div>
                 </div>
               </div>
 
               {/* Saved Materials (Bookmarks) Section */}
-              <div className={`p-4 rounded-3xl border shadow-sm ${
-                isDark ? 'bg-[#17212b] border-slate-800' : 'bg-white border-slate-200'
+              <div className={`p-4 rounded-2xl border ${
+                isDark ? 'bg-[#121215] border-white/[0.08]' : 'bg-white border-zinc-200'
               }`}>
-                <div className="flex justify-between items-center mb-3 px-1">
-                  <div className="flex items-center gap-1.5">
-                    <Star className="w-4 h-4 text-amber-500 fill-current" />
-                    <b className="text-xs">Saved Materials ({bookmarks.length})</b>
+                <div className="flex justify-between items-center mb-2 px-1">
+                  <div className="flex items-center gap-1.5 font-mono text-xs">
+                    <Star className="w-3.5 h-3.5 text-amber-400 fill-current" />
+                    <b>PINNED ASSETS ({bookmarks.length})</b>
                   </div>
-                  <span className="text-[10px] text-slate-400">Quick Access</span>
+                  <span className="text-[10px] font-mono text-zinc-500">QUICK ACCESS</span>
                 </div>
 
                 {bookmarks.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 text-xs">
-                    <BookMarked className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-40" />
-                    <p>No bookmarked items yet.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Tap the star icon on any material to pin it here!</p>
+                  <div className="text-center py-6 text-zinc-500 font-mono text-xs">
+                    <BookMarked className="w-6 h-6 text-zinc-500 mx-auto mb-1.5 opacity-40" />
+                    <p>// No pinned items.</p>
+                    <p className="text-[10px] font-mono text-zinc-500 mt-0.5">Tap the star icon on any material to pin it here.</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {bookmarks.map((bmTitle) => {
                       const matchedMat = materials.find((m) => m.title === bmTitle) || {
                         title: bmTitle,
                         course: 'Computer Science',
-                        size: '2.4 MB',
+                        size: 'PDF Document',
                       };
                       return (
                         <div
                           key={bmTitle}
-                          className={`p-3 rounded-2xl border flex items-center justify-between text-xs ${
-                            isDark ? 'bg-slate-800/60 border-slate-700' : 'bg-slate-50 border-slate-200'
+                          className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                            isDark ? 'bg-white/[0.02] border-white/[0.08]' : 'bg-zinc-50 border-zinc-200'
                           }`}
                         >
                           <div className="min-w-0 flex-1 pr-2">
-                            <div className="font-bold truncate">{bmTitle}</div>
-                            <div className="text-[10px] text-slate-400">{matchedMat.course} • {matchedMat.size}</div>
+                            <div className="font-bold truncate text-zinc-200">{bmTitle}</div>
+                            <div className="text-[10px] text-zinc-500">{matchedMat.course}</div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               onClick={() => toggleBookmark(bmTitle)}
-                              className="text-amber-500 px-1 text-sm"
+                              className="text-amber-400 px-1 text-xs"
                             >
                               ★
                             </button>
                             <button
                               onClick={() => sendToTelegramChat(matchedMat)}
-                              className="bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-xl"
+                              className="bg-zinc-100 text-zinc-950 text-[9px] font-mono font-bold px-2 py-0.5 rounded"
                             >
-                              ✈ Send
+                              ✈ SEND
                             </button>
                           </div>
                         </div>
@@ -1698,23 +1734,23 @@ export function App() {
 
         </main>
 
-        {/* Floating Toast Notification */}
+        {/* Floating Toast Notification (Linear Style) */}
         {toastMessage && (
-          <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto bg-slate-900/90 dark:bg-white/90 text-white dark:text-slate-900 py-2.5 px-4 rounded-2xl text-center text-xs font-semibold z-50 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto bg-zinc-900 border border-white/[0.15] text-zinc-100 py-2 px-3.5 rounded-xl text-center text-xs font-mono z-50 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150">
             {toastMessage}
           </div>
         )}
 
-        {/* Bottom Floating Navigation Dock */}
-        <nav className={`fixed bottom-0 inset-x-0 max-w-md mx-auto h-16 border-t px-2 py-1 z-40 backdrop-blur-xl transition-colors ${
-          isDark ? 'bg-[#17212b]/90 border-slate-800 text-slate-400' : 'bg-white/90 border-slate-200 text-slate-500'
+        {/* Bottom Floating Navigation Dock (Linear Dark Glass Dock) */}
+        <nav className={`fixed bottom-0 inset-x-0 max-w-md mx-auto h-14 border-t px-2 py-1 z-40 backdrop-blur-xl transition-colors ${
+          isDark ? 'bg-[#09090b]/90 border-white/[0.08] text-zinc-500' : 'bg-white/90 border-zinc-200 text-zinc-500'
         }`}>
           <div className="grid grid-cols-4 h-full">
             {[
-              { id: 'home', icon: BookOpen, label: 'Courses' },
-              { id: 'quizzes', icon: CheckSquare, label: 'Quizzes' },
-              { id: 'exam', icon: Award, label: 'Exit Exam' },
-              { id: 'profile', icon: User, label: 'Profile' },
+              { id: 'home', icon: BookOpen, label: 'COURSES' },
+              { id: 'quizzes', icon: CheckSquare, label: 'QUIZZES' },
+              { id: 'exam', icon: Award, label: 'EXIT EXAM' },
+              { id: 'profile', icon: User, label: 'PROFILE' },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive =
@@ -1730,16 +1766,16 @@ export function App() {
                     triggerHaptic('light');
                     setPage(tab.id);
                   }}
-                  className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
+                  className={`flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
                     isActive
-                      ? 'text-blue-600 dark:text-blue-400 font-extrabold'
-                      : 'hover:text-slate-800 dark:hover:text-slate-200'
+                      ? 'text-zinc-100 font-bold'
+                      : 'hover:text-zinc-300'
                   }`}
                 >
-                  <div className={`p-1 rounded-xl transition ${isActive ? 'bg-blue-500/10' : ''}`}>
-                    <Icon className="w-5 h-5" />
+                  <div className={`p-1 rounded-md transition ${isActive ? 'bg-white/[0.08] text-white' : ''}`}>
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] leading-none tracking-tight">{tab.label}</span>
+                  <span className="text-[9px] font-mono leading-none tracking-tight">{tab.label}</span>
                 </button>
               );
             })}

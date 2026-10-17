@@ -15,16 +15,16 @@ const DEFAULT_COURSES = [
 const DEFAULT_MATERIALS = [];
 
 const DEFAULT_QUIZZES = [
-  { id: 'q-1', title: 'Data Structures Quiz', questions: 15, status: 'Published' },
-  { id: 'q-2', title: 'Database Basics', questions: 20, status: 'Published' },
-  { id: 'q-3', title: 'Computer Networks Midterm Prep', questions: 25, status: 'Published' },
+  { id: 'q-1', title: 'Data Structures Quiz', questions: 4, status: 'Published' },
+  { id: 'q-2', title: 'Database Basics', questions: 3, status: 'Published' },
+  { id: 'q-3', title: 'Computer Networks Midterm Prep', questions: 3, status: 'Published' },
 ];
 
 const DEFAULT_EXAMS = [
-  { id: 'e-1', name: 'Data Structures', questions: 120 },
-  { id: 'e-2', name: 'Database Systems', questions: 100 },
-  { id: 'e-3', name: 'Computer Networks', questions: 90 },
-  { id: 'e-4', name: 'Operating Systems', questions: 110 },
+  { id: 'e-1', name: 'Data Structures', questions: 4 },
+  { id: 'e-2', name: 'Database Systems', questions: 3 },
+  { id: 'e-3', name: 'Computer Networks', questions: 3 },
+  { id: 'e-4', name: 'Operating Systems', questions: 3 },
 ];
 
 const DEFAULT_STUDENTS = [];
