@@ -28,6 +28,16 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat-tools', slug: 'dev-tools', name: 'Developer Tools & CLI', description: 'Production IDE configs, Git workflows, Docker compose templates', icon: 'Wrench', color: 'cyan', display_order: 6 },
 ];
 
+// Initial seed MoSHE CS Curriculum Courses
+export const DEFAULT_COURSES = [
+  { id: 'c-1', code: 'CS301', name: 'Data Structures & Algorithms', academic_year: '3rd Year', semester: 'Semester I', status: 'Published' },
+  { id: 'c-2', code: 'CS302', name: 'Database Management Systems', academic_year: '3rd Year', semester: 'Semester I', status: 'Published' },
+  { id: 'c-3', code: 'CS401', name: 'Computer Networks & Security', academic_year: '4th Year', semester: 'Semester I', status: 'Published' },
+  { id: 'c-4', code: 'CS303', name: 'Operating Systems & Kernels', academic_year: '3rd Year', semester: 'Semester II', status: 'Published' },
+  { id: 'c-5', code: 'CS405', name: 'Artificial Intelligence & ML', academic_year: '4th Year', semester: 'Semester II', status: 'Published' },
+  { id: 'c-6', code: 'CS201', name: 'Object Oriented Software Eng', academic_year: '2nd Year', semester: 'Semester I', status: 'Published' },
+];
+
 // Secure admin password setup (Problem 1)
 const adminPasswordHash = process.env.ADMIN_PASSWORD
   ? bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12)
@@ -64,6 +74,7 @@ function getLocalStore() {
     users: [DEFAULT_ADMIN],
     telegram_auth_codes: [],
     categories: DEFAULT_CATEGORIES,
+    courses: DEFAULT_COURSES,
     content: [],
     submissions: [],
     bookmarks: [],
@@ -244,6 +255,18 @@ async function runPostgresMigrations() {
       answers_breakdown JSONB DEFAULT '{}',
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS courses (
+      id VARCHAR(64) PRIMARY KEY,
+      code VARCHAR(30) NOT NULL,
+      name VARCHAR(150) NOT NULL,
+      academic_year VARCHAR(50) DEFAULT '3rd Year',
+      semester VARCHAR(50) DEFAULT 'Semester I',
+      description TEXT,
+      status VARCHAR(30) DEFAULT 'Published',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
   `;
 
   await pool.query(migrationSql);
@@ -255,6 +278,15 @@ async function runPostgresMigrations() {
       `INSERT INTO categories (id, slug, name, description, icon, color, display_order)
        VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
       [c.id, c.slug, c.name, c.description, c.icon, c.color, c.display_order]
+    );
+  }
+
+  // Seed initial MoSHE CS courses
+  for (const c of DEFAULT_COURSES) {
+    await pool.query(
+      `INSERT INTO courses (id, code, name, academic_year, semester, status)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+      [c.id, c.code, c.name, c.academic_year, c.semester, c.status]
     );
   }
 
@@ -579,6 +611,63 @@ export async function query(text, params = []) {
       return { rows: list.slice(0, 25) };
     }
     return { rows: list };
+  }
+
+  // 22. SELECT ... FROM courses
+  if (trimmed.toLowerCase().includes('from courses')) {
+    const list = store.courses || [...DEFAULT_COURSES];
+    return { rows: list };
+  }
+
+  // 23. INSERT INTO courses
+  if (trimmed.toLowerCase().startsWith('insert into courses')) {
+    const [id, code, name, academic_year, semester, description, status] = params;
+    const newCourse = {
+      id: id || `c-${Date.now()}`,
+      code: code ? String(code).toUpperCase() : 'CS100',
+      name: name || 'Untitled Course',
+      academic_year: academic_year || '3rd Year',
+      semester: semester || 'Semester I',
+      description: description || '',
+      status: status || 'Published',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    store.courses = store.courses || [...DEFAULT_COURSES];
+    store.courses.unshift(newCourse);
+    saveLocalStore(store);
+    return { rows: [newCourse] };
+  }
+
+  // 24. UPDATE courses
+  if (trimmed.toLowerCase().startsWith('update courses')) {
+    const [code, name, academic_year, semester, description, status, id] = params;
+    store.courses = (store.courses || [...DEFAULT_COURSES]).map((c) => {
+      if (c.id === id) {
+        return {
+          ...c,
+          code: code || c.code,
+          name: name || c.name,
+          academic_year: academic_year || c.academic_year,
+          semester: semester || c.semester,
+          description: description !== undefined ? description : c.description,
+          status: status || c.status,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return c;
+    });
+    saveLocalStore(store);
+    const updated = (store.courses || []).find((c) => c.id === id);
+    return { rows: updated ? [updated] : [] };
+  }
+
+  // 25. DELETE FROM courses
+  if (trimmed.toLowerCase().startsWith('delete from courses')) {
+    const id = params[0];
+    store.courses = (store.courses || [...DEFAULT_COURSES]).filter((c) => c.id !== id);
+    saveLocalStore(store);
+    return { rows: [{ id }] };
   }
 
   return { rows: [] };

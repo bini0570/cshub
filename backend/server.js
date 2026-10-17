@@ -13,6 +13,7 @@ import usersRoutes from './routes/users.js';
 import bookmarksRoutes from './routes/bookmarks.js';
 import auditLogsRoutes from './routes/auditLogs.js';
 import examsRoutes from './routes/exams.js';
+import coursesRoutes from './routes/courses.js';
 import { startTelegramBot, broadcastToStudents } from './bot.js';
 
 dotenv.config();
@@ -216,6 +217,7 @@ app.post(
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/courses', coursesRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/submissions', submissionsRoutes);
 app.use('/api/users', usersRoutes);

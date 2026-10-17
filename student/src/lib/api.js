@@ -92,6 +92,24 @@ export async function getCategories() {
 }
 
 /**
+ * Fetch all curriculum courses from Railway PostgreSQL
+ */
+export async function getCourses() {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/courses`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {
+      console.warn('API error, falling back to local courses:', err.message);
+    }
+  }
+  return getLocalItem('courses', []);
+}
+
+/**
  * Fetch published content with filters
  */
 export async function getPublishedContent({ type, categorySlug, search, isFeatured, limit } = {}) {

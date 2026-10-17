@@ -109,6 +109,72 @@ export async function getCategories() {
 }
 
 /**
+ * Course Management API (PostgreSQL + Local Fallback)
+ */
+export async function getCourses() {
+  if (API_BASE_URL) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/courses`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {
+      console.warn('API error, falling back to local courses:', err.message);
+    }
+  }
+  return getLocalItem('courses', []);
+}
+
+export async function createCourse(data) {
+  if (API_BASE_URL) {
+    const res = await fetch(`${API_BASE_URL}/api/courses`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (res.ok) return await res.json();
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create course in database');
+  }
+  const courses = getLocalItem('courses', []);
+  const newCourse = { id: `c-${Date.now()}`, ...data, status: data.status || 'Published' };
+  setLocalItem('courses', [newCourse, ...courses]);
+  return newCourse;
+}
+
+export async function updateCourse(id, data) {
+  if (API_BASE_URL) {
+    const res = await fetch(`${API_BASE_URL}/api/courses/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (res.ok) return await res.json();
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update course');
+  }
+  const courses = getLocalItem('courses', []);
+  const updated = courses.map((c) => (c.id === id ? { ...c, ...data } : c));
+  setLocalItem('courses', updated);
+  return { id, ...data };
+}
+
+export async function deleteCourse(id) {
+  if (API_BASE_URL) {
+    const res = await fetch(`${API_BASE_URL}/api/courses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (res.ok) return await res.json();
+  }
+  const courses = getLocalItem('courses', []);
+  const filtered = courses.filter((c) => c.id !== id);
+  setLocalItem('courses', filtered);
+  return { success: true };
+}
+
+/**
  * Fetch published content with filters
  */
 export async function getPublishedContent({ type, categorySlug, search, isFeatured, limit } = {}) {

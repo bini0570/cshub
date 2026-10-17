@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import { getCategories, getPublishedContent, getSubmissions, reviewSubmission, getUsers } from './lib/api';
+import {
+  getCategories,
+  getPublishedContent,
+  getSubmissions,
+  reviewSubmission,
+  getUsers,
+  getCourses,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+} from './lib/api';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -162,19 +172,31 @@ export function App() {
   useEffect(() => {
     async function fetchBackendData() {
       try {
-        const [cats, cont, subs, usersList] = await Promise.all([
-          getCategories(),
-          getPublishedContent(),
-          getSubmissions({ isAdmin: true }),
-          getUsers(),
+        const [cats, cont, subs, usersList, liveCourses] = await Promise.all([
+          getCategories().catch(() => null),
+          getPublishedContent().catch(() => null),
+          getSubmissions({ isAdmin: true }).catch(() => null),
+          getUsers().catch(() => null),
+          getCourses().catch(() => null),
         ]);
 
-        if (cats && cats.length > 0) {
+        if (liveCourses && liveCourses.length > 0) {
+          const mapped = liveCourses.map((c, i) => ({
+            id: c.id || `c-${i}`,
+            name: c.name,
+            code: c.code || `CS${301 + i}`,
+            year: c.academic_year || c.year || '3rd Year',
+            semester: c.semester || 'Semester I',
+            status: c.status || 'Published',
+          }));
+          setCourses(mapped);
+        } else if (cats && cats.length > 0) {
           const mapped = cats.map((c, i) => ({
             id: c.id || `c-${i}`,
             name: c.name,
             code: c.code || `CS${301 + i}`,
             year: c.academic_year || '3rd Year',
+            semester: 'Semester I',
             status: 'Published',
           }));
           setCourses(mapped);
@@ -285,23 +307,28 @@ export function App() {
     const data = Object.fromEntries(formData.entries());
 
     if (modalType === 'course') {
-      let updated;
+      const coursePayload = {
+        name: data.name,
+        code: data.code,
+        academic_year: data.year,
+        semester: data.semester || 'Semester I',
+        status: data.status || 'Published',
+      };
       if (editingItem) {
-        updated = courses.map((c) => (c.id === editingItem.id ? { ...c, ...data } : c));
-        showToast('Course updated');
+        updateCourse(editingItem.id, coursePayload)
+          .then((updated) => {
+            setCourses((prev) => prev.map((c) => (c.id === editingItem.id ? { ...c, ...updated, year: updated.academic_year || c.year } : c)));
+            showToast('✓ Course updated in database');
+          })
+          .catch((err) => showToast('Error: ' + err.message));
       } else {
-        const newCourse = {
-          id: `c-${Date.now()}`,
-          name: data.name,
-          code: data.code,
-          year: data.year,
-          status: data.status || 'Published',
-        };
-        updated = [newCourse, ...courses];
-        showToast('Course created');
+        createCourse(coursePayload)
+          .then((created) => {
+            setCourses((prev) => [{ ...created, year: created.academic_year }, ...prev]);
+            showToast('✓ Course created in database');
+          })
+          .catch((err) => showToast('Error: ' + err.message));
       }
-      setCourses(updated);
-      try { localStorage.setItem('cshub_admin_courses', JSON.stringify(updated)); } catch (err) {}
     } else if (modalType === 'material') {
       let updated;
       if (editingItem) {
@@ -365,6 +392,18 @@ export function App() {
     }
 
     closeModal();
+  };
+
+  // Delete Course from Database
+  const handleDeleteCourse = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete course "${name}" from the database?`)) return;
+    try {
+      await deleteCourse(id);
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+      showToast(`✓ Deleted "${name}" from database`);
+    } catch (err) {
+      showToast('Failed to delete course');
+    }
   };
 
   // Toggle Student Status
@@ -839,12 +878,18 @@ export function App() {
                                 {c.status}
                               </span>
                             </td>
-                            <td className="p-2 pr-1 text-right">
+                            <td className="p-2 pr-1 text-right space-x-1.5">
                               <button
                                 onClick={() => openModal('course', c)}
                                 className="border border-[#dbe4f0] rounded-md bg-white text-[#334155] px-2 py-1 text-xs hover:bg-slate-50 transition"
                               >
                                 Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCourse(c.id, c.name)}
+                                className="border border-rose-200 rounded-md bg-rose-50 text-rose-600 px-2 py-1 text-xs hover:bg-rose-100 transition"
+                              >
+                                Delete
                               </button>
                             </td>
                           </tr>
@@ -1505,6 +1550,17 @@ export function App() {
                       <option>4th Year</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="text-[11px] text-[#64748b] block mb-1">Semester</label>
+                    <select
+                      name="semester"
+                      defaultValue={editingItem?.semester || 'Semester I'}
+                      className="w-full p-2 border border-[#dbe3ee] rounded-lg bg-white text-xs text-[#334155] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option>Semester I</option>
+                      <option>Semester II</option>
+                    </select>
+                  </div>
                 </>
               )}
 
@@ -1523,13 +1579,18 @@ export function App() {
                   </div>
                   <div>
                     <label className="text-[11px] text-[#64748b] block mb-1">Course</label>
-                    <input
+                    <select
                       name="course"
                       required
-                      defaultValue={editingItem?.course || ''}
-                      placeholder="e.g. Data Structures"
+                      defaultValue={editingItem?.course || (courses[0]?.name || 'Data Structures & Algorithms')}
                       className="w-full p-2 border border-[#dbe3ee] rounded-lg bg-white text-xs text-[#334155] focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
+                    >
+                      {courses.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.code} - {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="text-[11px] text-[#64748b] block mb-1">Upload File (PDF / Slides / Exam)</label>

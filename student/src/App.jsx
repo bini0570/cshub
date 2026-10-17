@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
-import { getCategories, getPublishedContent, submitExamAttempt, getExamLeaderboard, getMyExamHistory } from './lib/api';
+import { getCategories, getPublishedContent, getCourses, submitExamAttempt, getExamLeaderboard, getMyExamHistory } from './lib/api';
 import {
   BookOpen,
   CheckSquare,
@@ -321,19 +321,30 @@ export function App() {
     };
   }, [page, playerMode, examSubmitted]);
 
-  // Load backend content & categories dynamically (no fake counts)
+  // Load backend content & courses dynamically from PostgreSQL
   useEffect(() => {
     async function loadData() {
-      const combinedCourses = [...DEFAULT_COURSES];
       const combinedMaterials = [...DEFAULT_MATERIALS];
 
       try {
-        const [cats, cont] = await Promise.all([
+        const [cats, cont, liveCourses] = await Promise.all([
           getCategories().catch(() => null),
           getPublishedContent().catch(() => null),
+          getCourses().catch(() => null),
         ]);
 
-        if (cats && cats.length > 0) {
+        if (liveCourses && liveCourses.length > 0) {
+          setCourses(
+            liveCourses.map((c) => ({
+              id: c.id,
+              name: c.name,
+              code: c.code,
+              year: c.academic_year || '3rd Year',
+              sem: c.semester || 'Semester I',
+            }))
+          );
+        } else if (cats && cats.length > 0) {
+          const combinedCourses = [...DEFAULT_COURSES];
           cats.forEach((cat, idx) => {
             if (!combinedCourses.some((c) => c.name.toLowerCase() === cat.name.toLowerCase())) {
               combinedCourses.push({
@@ -345,7 +356,9 @@ export function App() {
               });
             }
           });
+          setCourses(combinedCourses);
         }
+
         if (cont && cont.length > 0) {
           cont.forEach((item, idx) => {
             if (!combinedMaterials.some((m) => m.title === item.title)) {
@@ -364,10 +377,10 @@ export function App() {
         }
       } catch (err) {}
 
-      setCourses(combinedCourses);
       setMaterials(combinedMaterials);
     }
     loadData();
+  }, []);
   }, []);
 
   // Filtered Courses based on Pills
