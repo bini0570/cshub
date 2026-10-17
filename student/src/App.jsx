@@ -381,7 +381,6 @@ export function App() {
     }
     loadData();
   }, []);
-  }, []);
 
   // Filtered Courses based on Pills
   const filteredCourses = useMemo(() => {
