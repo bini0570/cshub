@@ -160,14 +160,22 @@ router.post('/telegram-verify', rateLimit({ windowMs: 5 * 60 * 1000, max: 10, me
  * Admin Login via Email and Password
  * POST /api/auth/admin-login
  */
-router.post('/admin-login', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many login attempts. Account temporarily locked for 15 minutes.' }), async (req, res) => {
+router.post('/admin-login', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: 'Too many login attempts. Please wait 15 minutes.' }), async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Email and password are required' });
+    return res.status(400).json({ error: 'Email/username and password are required' });
   }
 
   try {
-    const userRes = await query(`SELECT * FROM users WHERE email = $1`, [email.toLowerCase().trim()]);
+    const identifier = email.toLowerCase().trim();
+    const userRes = await query(
+      `SELECT * FROM users 
+       WHERE LOWER(email) = $1 
+          OR LOWER(student_id) = $1 
+          OR ($1 = 'admin' AND role IN ('admin', 'super_admin'))
+       LIMIT 1`,
+      [identifier]
+    );
     if (userRes.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

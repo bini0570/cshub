@@ -39,9 +39,8 @@ export const DEFAULT_COURSES = [
 ];
 
 // Secure admin password setup (Problem 1)
-const adminPasswordHash = process.env.ADMIN_PASSWORD
-  ? bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12)
-  : '$2a$12$K8yR2u/d27P4G38D5fV8Ue4iZg6kH8jL0mN2pQ4rS6tU8vW0xY2a6';
+const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+const adminPasswordHash = bcrypt.hashSync(defaultAdminPassword, 10);
 
 const DEFAULT_ADMIN = {
   id: 'admin-primary',
@@ -290,15 +289,24 @@ async function runPostgresMigrations() {
     );
   }
 
-  // Seed initial admin if none exists (Problem 1)
-  const existingAdmin = await pool.query(`SELECT id FROM users WHERE role = 'super_admin' LIMIT 1`);
+  // Seed or synchronize initial super administrator account
+  const existingAdmin = await pool.query(
+    `SELECT id FROM users WHERE email = $1 OR id = $2 LIMIT 1`,
+    [DEFAULT_ADMIN.email, DEFAULT_ADMIN.id]
+  );
   if (existingAdmin.rows.length === 0) {
     await pool.query(
       `INSERT INTO users (id, student_id, full_name, role, status, email, password_hash)
        VALUES ($1, $2, $3, $4, 'active', $5, $6) ON CONFLICT (id) DO NOTHING`,
-      [DEFAULT_ADMIN.id, DEFAULT_ADMIN.student_id, DEFAULT_ADMIN.full_name, DEFAULT_ADMIN.role, DEFAULT_ADMIN.email, DEFAULT_ADMIN.password_hash]
+      [DEFAULT_ADMIN.id, DEFAULT_ADMIN.student_id, DEFAULT_ADMIN.full_name, DEFAULT_ADMIN.role, DEFAULT_ADMIN.email, adminPasswordHash]
     );
     console.log('ℹ️ Initial super administrator account provisioned.');
+  } else {
+    await pool.query(
+      `UPDATE users SET password_hash = $1, status = 'active', role = 'super_admin' WHERE email = $2 OR id = $3`,
+      [adminPasswordHash, DEFAULT_ADMIN.email, DEFAULT_ADMIN.id]
+    );
+    console.log('ℹ️ Super administrator account synchronized with active credentials.');
   }
 }
 
